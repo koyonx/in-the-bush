@@ -1,5 +1,5 @@
-import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { useEffect, useRef } from "react";
+import { Canvas, useThree } from "@react-three/fiber";
 import { Table } from "./Table";
 import { SuspectCard } from "./SuspectCard";
 import { VictimCard } from "./VictimCard";
@@ -8,11 +8,34 @@ import { AlibiCard } from "./AlibiCard";
 import { DiscovererMarker } from "./DiscovererMarker";
 import type { GameData } from "../../App";
 import type { CardInfo } from "../../types";
+import * as THREE from "three";
 
 interface Props {
   gameData: GameData;
   playerId: string;
   spectatorMode?: boolean;
+}
+
+/** Camera controller that looks at the table center */
+function CameraController({ spectatorMode }: { spectatorMode: boolean }) {
+  const { camera } = useThree();
+  const initialized = useRef(false);
+
+  useEffect(() => {
+    if (!initialized.current) {
+      if (spectatorMode) {
+        camera.position.set(0, 12, 0.5);
+      } else {
+        // Angled from player side, looking down at center
+        camera.position.set(0, 7, 4);
+      }
+      camera.lookAt(new THREE.Vector3(0, 0, 0));
+      camera.updateProjectionMatrix();
+      initialized.current = true;
+    }
+  }, [camera, spectatorMode]);
+
+  return null;
 }
 
 export function TableScene({ gameData, playerId, spectatorMode = false }: Props) {
@@ -21,19 +44,19 @@ export function TableScene({ gameData, playerId, spectatorMode = false }: Props)
 
   // Suspect card positions (center, slightly spread)
   const suspectPositions: [number, number, number][] = [
-    [-1.2, 0.05, -0.3],
-    [0, 0.05, -0.3],
-    [1.2, 0.05, -0.3],
+    [-1.3, 0.05, 0],
+    [0, 0.05, 0],
+    [1.3, 0.05, 0],
   ];
 
-  // Player positions around the table
+  // Player positions around the table (excluding self)
   const getPlayerPositions = (count: number): [number, number, number][] => {
     const positions: [number, number, number][] = [];
     for (let i = 0; i < count; i++) {
-      // Arrange in a circle, starting from bottom (self) going clockwise
       const offset = spectatorMode ? 0 : -myIndex;
-      const angle = ((i + offset) / count) * Math.PI * 2 - Math.PI / 2;
-      const radius = 3.5;
+      // Start from bottom-center, go clockwise
+      const angle = ((i + offset) / count) * Math.PI * 2 + Math.PI / 2;
+      const radius = 3.2;
       positions.push([
         Math.cos(angle) * radius,
         0.05,
@@ -57,27 +80,26 @@ export function TableScene({ gameData, playerId, spectatorMode = false }: Props)
     return { faceUp: false, card: null };
   };
 
-  // Camera position - closer and more angled to see the table properly
-  const cameraPosition: [number, number, number] = spectatorMode
-    ? [0, 10, 0.1] // Top-down for spectator
-    : [0, 6, 5]; // Angled view for player - closer to table
-
   return (
     <Canvas
-      camera={{ position: cameraPosition, fov: 60 }}
+      camera={{ fov: 55 }}
       shadows
       style={{ background: "#1a0a0a", width: "100%", height: "100%" }}
     >
+      <CameraController spectatorMode={spectatorMode} />
+
       {/* Lighting */}
-      <ambientLight intensity={0.4} />
+      <ambientLight intensity={0.5} />
       <directionalLight
-        position={[5, 8, 5]}
-        intensity={0.8}
+        position={[3, 10, 5]}
+        intensity={0.7}
         castShadow
         shadow-mapSize-width={1024}
         shadow-mapSize-height={1024}
       />
-      <pointLight position={[0, 4, 0]} intensity={0.6} color="#fff5e0" />
+      <pointLight position={[0, 5, 0]} intensity={0.5} color="#fff5e0" />
+      {/* Warm fill from below to see the card faces */}
+      <pointLight position={[0, 2, 3]} intensity={0.3} color="#ffe0c0" />
 
       {/* Table */}
       <Table />
@@ -99,7 +121,7 @@ export function TableScene({ gameData, playerId, spectatorMode = false }: Props)
 
       {/* Victim Card */}
       <VictimCard
-        position={[0, 0.02, 0.8]}
+        position={[0, 0.02, 1.2]}
         card={roundResult?.victim ?? null}
         faceUp={!!roundResult}
       />
@@ -121,24 +143,15 @@ export function TableScene({ gameData, playerId, spectatorMode = false }: Props)
         />
       ))}
 
-      {/* Alibi Card (player's hand area) */}
+      {/* Alibi Card (player's hand area - in front, near bottom of view) */}
       {alibiCards && phase !== "round_end" && phase !== "game_over" && (
         <AlibiCard
-          position={[0, 0.1, 3.2]}
+          position={[0, 0.1, 3.5]}
           ownCard={alibiCards.own}
           receivedCard={alibiCards.received}
           phase={phase}
         />
       )}
-
-      {/* Controls */}
-      <OrbitControls
-        enablePan={false}
-        enableZoom={spectatorMode}
-        enableRotate={spectatorMode}
-        maxPolarAngle={Math.PI / 2.2}
-        minPolarAngle={Math.PI / 6}
-      />
     </Canvas>
   );
 }

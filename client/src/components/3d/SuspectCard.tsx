@@ -57,7 +57,6 @@ export function SuspectCard({ position, index, faceUp, card, isMurderer = false 
           position={[0, 0.6, 0.04]}
           fontSize={0.4}
           color={isFive ? "#E63946" : "#2D2926"}
-          font="/fonts/MPLUSRounded1c-Black.ttf"
           anchorX="center"
           anchorY="middle"
         >
