@@ -1,4 +1,4 @@
-use crate::game::GameState;
+use crate::game::{GameState, MAX_PLAYERS, MIN_PLAYERS};
 use rand::Rng;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
@@ -33,8 +33,8 @@ impl Room {
     }
 
     pub fn add_player(&mut self, player: Player) -> Result<(), String> {
-        if self.players.len() >= 4 {
-            return Err("ルームが満員です".to_string());
+        if self.players.len() >= MAX_PLAYERS {
+            return Err(format!("ルームが満員です（最大{}人）", MAX_PLAYERS));
         }
         if self.game.is_some() {
             return Err("ゲームが既に開始されています".to_string());
@@ -60,8 +60,11 @@ impl Room {
     }
 
     pub fn start_game(&mut self) -> Result<(), String> {
-        if self.players.len() < 3 {
-            return Err("3人以上のプレイヤーが必要です".to_string());
+        if self.players.len() < MIN_PLAYERS {
+            return Err(format!("{}人以上のプレイヤーが必要です", MIN_PLAYERS));
+        }
+        if self.players.len() > MAX_PLAYERS {
+            return Err(format!("プレイヤーが多すぎます（最大{}人）", MAX_PLAYERS));
         }
         let player_ids: Vec<(String, String)> = self
             .players

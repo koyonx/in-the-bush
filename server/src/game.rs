@@ -2,7 +2,11 @@ use rand::seq::SliceRandom;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 
-/// カードの種類: 数字カード(2-8)とブランクカード
+/// プレイヤー数の範囲
+pub const MIN_PLAYERS: usize = 2;
+pub const MAX_PLAYERS: usize = 10;
+
+/// カードの種類: 数字カードとブランクカード
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Card {
     Number(u8),
@@ -101,7 +105,7 @@ impl GameState {
             alibi_passed: false,
         };
 
-        if num_players >= 3 {
+        if num_players >= MIN_PLAYERS {
             state.setup_round();
         }
 
@@ -144,13 +148,33 @@ impl GameState {
     }
 
     /// プレイヤー数に応じたデッキ作成
+    /// N人 → N + 4枚必要 (Nアリバイ + 1被害者 + 3容疑者)
+    /// 数字カード: N + 3枚 + Blank 1枚 = N + 4枚
+    ///
+    /// | 人数 | 枚数 | 数字範囲     |
+    /// |------|------|-------------|
+    /// | 2    | 6    | 4-8 + Blank |
+    /// | 3    | 7    | 3-8 + Blank |
+    /// | 4    | 8    | 2-8 + Blank |
+    /// | 5    | 9    | 2-9 + Blank |
+    /// | 6    | 10   | 2-10+ Blank |
+    /// | ...  | ...  | ...         |
+    /// | 10   | 14   | 2-14+ Blank |
     fn create_deck(&self, num_players: usize) -> Vec<Card> {
         let mut cards = Vec::new();
-        let start = match num_players {
-            3 => 3, // 2を除く (7枚: 3人アリバイ + 1被害者 + 3容疑者)
-            _ => 2, // 4人: 全カード使用 (8枚: 4人アリバイ + 1被害者 + 3容疑者)
+        let num_number_cards = num_players + 3; // Blank を除く数字カードの枚数
+
+        // 4人以下: 上限8固定で下限を上げる (4→2, 3→3, 2→4)
+        // 5人以上: 下限2固定で上限を伸ばす
+        let (start, end) = if num_players <= 4 {
+            let start = (8 + 1) - num_number_cards as u8; // 4人→2, 3人→3, 2人→4
+            (start, 8u8)
+        } else {
+            let end = num_number_cards as u8 + 1; // 5人→9, 6→10, ... 10→14
+            (2u8, end)
         };
-        for i in start..=8 {
+
+        for i in start..=end {
             cards.push(Card::Number(i));
         }
         cards.push(Card::Blank);
