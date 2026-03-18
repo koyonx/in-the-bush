@@ -27,7 +27,7 @@ export type ServerMessage =
   | { type: "player_joined"; players: PlayerInfo[] }
   | { type: "player_left"; players: PlayerInfo[]; player_name: string }
   | { type: "game_started"; discoverer_index: number; players: PlayerInfo[] }
-  | { type: "alibi_cards"; own_card: CardInfo; received_card: CardInfo }
+  | { type: "alibi_cards"; own_card: CardInfo; received_card: CardInfo | null }
   | { type: "accusation_phase"; current_turn: number; is_discoverer: boolean }
   | { type: "suspects_viewed"; cards: [CardInfo, CardInfo]; indices: [number, number] }
   | { type: "waiting_for_action"; action: string; current_player: string }

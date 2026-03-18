@@ -70,7 +70,7 @@ pub enum ServerMessage {
     #[serde(rename = "alibi_cards")]
     AlibiCards {
         own_card: CardInfo,
-        received_card: CardInfo,
+        received_card: Option<CardInfo>,
     },
     #[serde(rename = "accusation_phase")]
     AccusationPhase {
@@ -180,10 +180,15 @@ fn collect_round_start_messages(
     let mut alibi_msgs: Vec<(String, String)> = Vec::new();
     for i in 0..n {
         let own_card = game.alibi_cards[i].into();
-        let right_card = game.alibi_cards[(i + 1) % n].into();
+        // 2人プレイ時はアリバイ渡しなし
+        let received_card = if n > 2 {
+            Some(game.alibi_cards[(i + 1) % n].into())
+        } else {
+            None
+        };
         let alibi_msg = ServerMessage::AlibiCards {
             own_card,
-            received_card: right_card,
+            received_card,
         };
         if let Ok(json) = serde_json::to_string(&alibi_msg) {
             alibi_msgs.push((game.players[i].id.clone(), json));

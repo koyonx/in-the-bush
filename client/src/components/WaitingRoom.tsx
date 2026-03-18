@@ -1,5 +1,8 @@
 import type { PlayerInfo } from "../types";
 
+const MIN_PLAYERS = 2;
+const MAX_PLAYERS = 10;
+
 interface Props {
   roomId: string;
   players: PlayerInfo[];
@@ -8,6 +11,8 @@ interface Props {
 }
 
 export function WaitingRoom({ roomId, players, isHost, onStart }: Props) {
+  const canStart = players.length >= MIN_PLAYERS;
+
   return (
     <div className="flex-1 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
@@ -27,9 +32,9 @@ export function WaitingRoom({ roomId, players, isHost, onStart }: Props) {
 
         <div className="bg-gray-800/50 rounded-xl p-4 mb-6 border border-gray-700">
           <p className="text-gray-400 text-sm mb-3">
-            プレイヤー ({players.length}/4)
+            プレイヤー ({players.length}/{MAX_PLAYERS})
           </p>
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-80 overflow-y-auto">
             {players.map((p, i) => (
               <div
                 key={p.id}
@@ -46,29 +51,23 @@ export function WaitingRoom({ roomId, players, isHost, onStart }: Props) {
                 )}
               </div>
             ))}
-            {Array.from({ length: 4 - players.length }).map((_, i) => (
-              <div
-                key={`empty-${i}`}
-                className="flex items-center gap-3 px-3 py-2 bg-gray-800/30 rounded-lg border border-dashed border-gray-700"
-              >
-                <div className="w-8 h-8 rounded-full bg-gray-700/50 flex items-center justify-center text-gray-600 text-sm">
-                  {players.length + i + 1}
-                </div>
-                <span className="text-gray-600">待機中...</span>
-              </div>
-            ))}
           </div>
+          {players.length < MAX_PLAYERS && (
+            <p className="text-gray-500 text-xs mt-2 text-center">
+              あと{MAX_PLAYERS - players.length}人まで参加可能
+            </p>
+          )}
         </div>
 
         {isHost && (
           <button
             onClick={onStart}
-            disabled={players.length < 3}
+            disabled={!canStart}
             className="w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg font-medium transition-colors"
           >
-            {players.length < 3
-              ? `あと${3 - players.length}人必要です`
-              : "ゲーム開始"}
+            {!canStart
+              ? `あと${MIN_PLAYERS - players.length}人必要です`
+              : `ゲーム開始 (${players.length}人)`}
           </button>
         )}
         {!isHost && (

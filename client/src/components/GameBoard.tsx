@@ -84,7 +84,9 @@ export function GameBoard({ gameData, playerId, onSend }: Props) {
           </p>
           <div className="flex justify-center gap-6 mb-6">
             <CardDisplay card={alibiCards.own} label="自分のカード" />
-            <CardDisplay card={alibiCards.received} label="右隣から" />
+            {alibiCards.received && (
+              <CardDisplay card={alibiCards.received} label="右隣から" />
+            )}
           </div>
           <button
             onClick={() => onSend({ type: "pass_alibi" })}
@@ -333,7 +335,9 @@ export function GameBoard({ gameData, playerId, onSend }: Props) {
           <p className="text-gray-500 text-xs mb-1">あなたのアリバイ情報</p>
           <div className="flex gap-3 justify-center">
             <CardDisplay card={alibiCards.own} size="sm" label="自分" />
-            <CardDisplay card={alibiCards.received} size="sm" label="右隣" />
+            {alibiCards.received && (
+              <CardDisplay card={alibiCards.received} size="sm" label="右隣" />
+            )}
           </div>
         </div>
       )}
