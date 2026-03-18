@@ -42,9 +42,9 @@ export function GameBoard({ gameData, playerId, onSend }: Props) {
   };
 
   return (
-    <div className="flex-1 flex flex-col relative">
+    <div className="flex-1 relative">
       {/* 3D Table (full screen) */}
-      <div className="flex-1">
+      <div className="absolute inset-0">
         <TableScene gameData={gameData} playerId={playerId} />
       </div>
 

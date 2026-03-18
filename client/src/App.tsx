@@ -210,7 +210,7 @@ function App() {
   );
 
   return (
-    <div className="min-h-svh flex flex-col">
+    <div className="h-svh flex flex-col overflow-hidden">
       {!connected && (
         <div className="bg-[var(--oink-dark)] text-white text-center py-2.5 text-sm font-bold tracking-wide animate-slide-down">
           接続中...

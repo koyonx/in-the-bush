@@ -57,16 +57,16 @@ export function TableScene({ gameData, playerId, spectatorMode = false }: Props)
     return { faceUp: false, card: null };
   };
 
-  // Camera position
+  // Camera position - closer and more angled to see the table properly
   const cameraPosition: [number, number, number] = spectatorMode
-    ? [0, 8, 0.1] // Top-down for spectator
-    : [0, 5, 4.5]; // Angled view for player
+    ? [0, 10, 0.1] // Top-down for spectator
+    : [0, 6, 5]; // Angled view for player - closer to table
 
   return (
     <Canvas
-      camera={{ position: cameraPosition, fov: 50 }}
+      camera={{ position: cameraPosition, fov: 60 }}
       shadows
-      style={{ background: "#1a0a0a" }}
+      style={{ background: "#1a0a0a", width: "100%", height: "100%" }}
     >
       {/* Lighting */}
       <ambientLight intensity={0.4} />
