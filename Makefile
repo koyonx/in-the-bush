@@ -1,7 +1,8 @@
 .PHONY: help setup up down restart build logs logs-f \
-       client-dev client-build client-lint client-install \
+       client-dev client-build client-lint client-install client-preview \
        server-build server-up server-down server-restart server-logs \
-       dev clean nuke test fmt check
+       dev clean nuke test test-verbose fmt check \
+       server-shell server-build-debug ws-test
 
 # ==============================================================================
 # 基本設定
@@ -9,6 +10,14 @@
 CLIENT_DIR := client
 SERVER_DIR := server
 DOCKER_COMPOSE := docker compose
+# rust:1.85 (非slim) を使用: rustfmt等のツールチェーンが完備
+RUST_IMAGE := rust:1.85
+# 名前付きボリュームでビルドキャッシュを永続化
+RUST_RUN := docker run --rm \
+	-v $(PWD)/$(SERVER_DIR):/app \
+	-v yabu-cargo-cache:/app/target \
+	-v yabu-cargo-registry:/usr/local/cargo/registry \
+	-w /app $(RUST_IMAGE)
 
 # ==============================================================================
 # ヘルプ
@@ -26,7 +35,7 @@ help: ## コマンド一覧を表示
 # セットアップ
 # ==============================================================================
 setup: client-install server-build ## 初回セットアップ (依存関係インストール + サーバービルド)
-	@echo "✔ セットアップ完了"
+	@echo "セットアップ完了"
 
 # ==============================================================================
 # 開発 (サーバー + クライアント同時起動)
@@ -80,19 +89,19 @@ client-preview: ## クライアントの本番ビルドをプレビュー
 # 品質チェック
 # ==============================================================================
 check: client-lint ## 全体の品質チェック (lint)
-	@echo "✔ チェック完了"
+	@echo "チェック完了"
 
 fmt: ## Rustコードのフォーマット (Docker経由)
-	docker run --rm -v $(PWD)/$(SERVER_DIR):/app -w /app rust:1.85-slim cargo fmt
+	$(RUST_RUN) cargo fmt
 
 # ==============================================================================
 # テスト
 # ==============================================================================
 test: ## Rustのテストを実行 (Docker経由)
-	docker run --rm -v $(PWD)/$(SERVER_DIR):/app -w /app rust:1.85-slim cargo test
+	$(RUST_RUN) cargo test
 
 test-verbose: ## Rustのテストを詳細出力で実行
-	docker run --rm -v $(PWD)/$(SERVER_DIR):/app -w /app rust:1.85-slim cargo test -- --nocapture
+	$(RUST_RUN) cargo test -- --nocapture
 
 # ==============================================================================
 # デバッグ
@@ -101,7 +110,7 @@ server-shell: ## サーバーコンテナ内でシェルを起動
 	$(DOCKER_COMPOSE) exec server /bin/bash
 
 server-build-debug: ## デバッグビルド (Docker経由, 高速コンパイル)
-	docker run --rm -v $(PWD)/$(SERVER_DIR):/app -w /app rust:1.85-slim cargo build 2>&1
+	$(RUST_RUN) cargo build 2>&1
 
 ws-test: ## WebSocket接続テスト (サーバーが起動している前提)
 	@echo '{"type":"create_room","name":"テスト"}' | \
@@ -113,9 +122,10 @@ ws-test: ## WebSocket接続テスト (サーバーが起動している前提)
 # ==============================================================================
 clean: ## ビルド成果物を削除
 	rm -rf $(CLIENT_DIR)/dist
-	@echo "✔ クリーン完了"
+	@echo "クリーン完了"
 
-nuke: clean server-down ## 全てを停止・削除 (コンテナ, イメージ, node_modules)
+nuke: clean server-down ## 全てを停止・削除 (コンテナ, イメージ, node_modules, キャッシュ)
 	rm -rf $(CLIENT_DIR)/node_modules
 	$(DOCKER_COMPOSE) down --rmi local --volumes --remove-orphans 2>/dev/null || true
-	@echo "✔ 完全クリーン完了"
+	docker volume rm yabu-cargo-cache yabu-cargo-registry 2>/dev/null || true
+	@echo "完全クリーン完了"
