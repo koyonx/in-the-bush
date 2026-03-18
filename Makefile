@@ -1,7 +1,7 @@
 .PHONY: help setup up down restart build logs logs-f \
        client-dev client-build client-lint client-install client-preview \
        server-build server-up server-down server-restart server-logs \
-       dev clean nuke test test-verbose fmt check \
+       dev clean purge test test-verbose fmt check \
        server-shell server-build-debug ws-test
 
 # ==============================================================================
@@ -124,7 +124,7 @@ clean: ## ビルド成果物を削除
 	rm -rf $(CLIENT_DIR)/dist
 	@echo "クリーン完了"
 
-nuke: clean server-down ## 全てを停止・削除 (コンテナ, イメージ, node_modules, キャッシュ)
+purge: clean server-down ## 全てを停止・削除 (コンテナ, イメージ, node_modules, キャッシュ)
 	rm -rf $(CLIENT_DIR)/node_modules
 	$(DOCKER_COMPOSE) down --rmi local --volumes --remove-orphans 2>/dev/null || true
 	docker volume rm yabu-cargo-cache yabu-cargo-registry 2>/dev/null || true

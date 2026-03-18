@@ -75,7 +75,7 @@ make dev
 | コマンド | 説明 |
 |---------|------|
 | `make clean` | ビルド成果物を削除 |
-| `make nuke` | 全停止・全削除 (コンテナ, イメージ, node_modules) |
+| `make purge` | 全停止・全削除 (コンテナ, イメージ, node_modules) |
 
 ## ゲームルール
 
