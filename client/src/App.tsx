@@ -212,12 +212,12 @@ function App() {
   return (
     <div className="min-h-svh flex flex-col">
       {!connected && (
-        <div className="bg-red-900/80 text-white text-center py-2 text-sm">
-          サーバーに接続中...
+        <div className="bg-[var(--oink-dark)] text-white text-center py-2.5 text-sm font-bold tracking-wide animate-slide-down">
+          接続中...
         </div>
       )}
       {error && (
-        <div className="bg-red-800/80 text-white text-center py-2 text-sm">
+        <div className="bg-[var(--oink-red)] text-white text-center py-2.5 text-sm font-bold animate-slide-down">
           {error}
         </div>
       )}

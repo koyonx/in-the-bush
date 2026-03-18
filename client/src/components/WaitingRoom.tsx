@@ -3,6 +3,19 @@ import type { PlayerInfo } from "../types";
 const MIN_PLAYERS = 2;
 const MAX_PLAYERS = 10;
 
+const PLAYER_COLORS = [
+  "bg-[var(--oink-orange)]",
+  "bg-[var(--oink-teal)]",
+  "bg-[var(--oink-blue)]",
+  "bg-[var(--oink-red)]",
+  "bg-[var(--oink-yellow)]",
+  "bg-[#9B59B6]",
+  "bg-[#2ECC71]",
+  "bg-[#E67E22]",
+  "bg-[#1ABC9C]",
+  "bg-[#E74C3C]",
+];
+
 interface Props {
   roomId: string;
   players: PlayerInfo[];
@@ -14,66 +27,70 @@ export function WaitingRoom({ roomId, players, isHost, onStart }: Props) {
   const canStart = players.length >= MIN_PLAYERS;
 
   return (
-    <div className="flex-1 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <h2 className="text-2xl font-bold text-center mb-2 text-white">
-          待機中
-        </h2>
-
-        <div className="bg-gray-800/50 rounded-xl p-6 mb-6 border border-gray-700">
-          <p className="text-gray-400 text-sm mb-1">ルームID</p>
-          <p className="text-4xl font-mono font-bold text-amber-400 tracking-[0.5em] text-center">
+    <div className="flex-1 flex items-center justify-center p-6">
+      <div className="w-full max-w-sm animate-fade-in-up">
+        {/* Room ID */}
+        <div className="bg-white rounded-3xl p-6 mb-6 text-center shadow-sm border-2 border-[var(--oink-light-gray)]">
+          <p className="text-[var(--oink-gray)] text-xs font-medium tracking-wider uppercase mb-2">Room ID</p>
+          <p className="text-5xl font-black text-[var(--oink-dark)] tracking-[0.4em] font-mono">
             {roomId}
           </p>
-          <p className="text-gray-500 text-xs mt-2 text-center">
-            このIDを他のプレイヤーに共有してください
+          <p className="text-[var(--oink-gray)] text-xs mt-3">
+            このIDを共有してください
           </p>
         </div>
 
-        <div className="bg-gray-800/50 rounded-xl p-4 mb-6 border border-gray-700">
-          <p className="text-gray-400 text-sm mb-3">
-            プレイヤー ({players.length}/{MAX_PLAYERS})
+        {/* Players */}
+        <div className="mb-6">
+          <p className="text-[var(--oink-gray)] text-xs font-medium tracking-wider uppercase mb-3 px-1">
+            Players ({players.length}/{MAX_PLAYERS})
           </p>
-          <div className="space-y-2 max-h-80 overflow-y-auto">
+          <div className="space-y-2">
             {players.map((p, i) => (
               <div
                 key={p.id}
-                className="flex items-center gap-3 px-3 py-2 bg-gray-700/50 rounded-lg"
+                className={`flex items-center gap-3 px-4 py-3 bg-white rounded-2xl border-2 border-[var(--oink-light-gray)] animate-fade-in-up stagger-${i + 1}`}
               >
-                <div className="w-8 h-8 rounded-full bg-amber-600/30 flex items-center justify-center text-amber-400 text-sm font-bold">
-                  {i + 1}
+                <div className={`w-9 h-9 rounded-full ${PLAYER_COLORS[i % PLAYER_COLORS.length]} flex items-center justify-center text-white text-sm font-black shadow-sm`}>
+                  {(p.name[0] || "?").toUpperCase()}
                 </div>
-                <span className="text-white">{p.name}</span>
+                <span className="text-[var(--oink-dark)] font-bold flex-1">{p.name}</span>
                 {i === 0 && (
-                  <span className="ml-auto text-xs text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded">
-                    ホスト
+                  <span className="text-xs text-[var(--oink-orange)] bg-[var(--oink-orange)]/10 px-2.5 py-1 rounded-full font-bold">
+                    HOST
                   </span>
                 )}
               </div>
             ))}
           </div>
           {players.length < MAX_PLAYERS && (
-            <p className="text-gray-500 text-xs mt-2 text-center">
-              あと{MAX_PLAYERS - players.length}人まで参加可能
-            </p>
+            <div className="flex items-center justify-center gap-2 mt-3 animate-pulse-soft">
+              <div className="w-2 h-2 rounded-full bg-[var(--oink-teal)]" />
+              <p className="text-[var(--oink-gray)] text-xs font-medium">
+                参加を待っています...
+              </p>
+            </div>
           )}
         </div>
 
+        {/* Start button */}
         {isHost && (
           <button
             onClick={onStart}
             disabled={!canStart}
-            className="w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg font-medium transition-colors"
+            className="w-full py-4 bg-[var(--oink-orange)] hover:bg-[var(--oink-orange-light)] disabled:bg-[var(--oink-light-gray)] disabled:text-[var(--oink-gray)] text-white rounded-2xl font-bold text-lg transition-all active:scale-[0.98] shadow-lg shadow-[var(--oink-orange)]/20 disabled:shadow-none"
           >
             {!canStart
-              ? `あと${MIN_PLAYERS - players.length}人必要です`
-              : `ゲーム開始 (${players.length}人)`}
+              ? `あと${MIN_PLAYERS - players.length}人必要`
+              : `ゲーム開始`}
           </button>
         )}
         {!isHost && (
-          <p className="text-center text-gray-400 text-sm">
-            ホストがゲームを開始するのを待っています...
-          </p>
+          <div className="text-center py-3">
+            <p className="text-[var(--oink-gray)] text-sm font-medium">
+              ホストの開始を待っています
+            </p>
+          </div>
         )}
       </div>
     </div>

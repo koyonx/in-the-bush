@@ -21,36 +21,41 @@ export function Lobby({ onSend }: Props) {
   };
 
   return (
-    <div className="flex-1 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <h1 className="text-4xl font-bold text-center mb-2 text-white tracking-wider">
-          藪の中
-        </h1>
-        <p className="text-center text-gray-400 mb-8 text-sm">
-          推理と欺きのカードゲーム
-        </p>
+    <div className="flex-1 flex items-center justify-center p-6">
+      <div className="w-full max-w-sm animate-fade-in-up">
+        {/* Logo */}
+        <div className="text-center mb-10">
+          <div className="inline-block bg-[var(--oink-dark)] rounded-3xl px-8 py-4 mb-4 animate-scale-in">
+            <h1 className="text-4xl font-black text-[var(--oink-cream)] tracking-widest">
+              藪の中
+            </h1>
+          </div>
+          <p className="text-[var(--oink-gray)] text-sm font-medium tracking-wider">
+            YABU NO NAKA
+          </p>
+        </div>
 
         {mode === "select" && (
-          <div className="space-y-4">
+          <div className="space-y-4 animate-fade-in">
             <input
               type="text"
-              placeholder="名前を入力"
+              placeholder="あなたの名前"
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={12}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 text-center text-lg"
+              className="w-full px-5 py-4 bg-white border-2 border-[var(--oink-light-gray)] rounded-2xl text-[var(--oink-dark)] placeholder-[var(--oink-gray)] focus:outline-none focus:border-[var(--oink-orange)] text-center text-lg font-medium transition-colors"
             />
             <button
               onClick={() => name.trim() && setMode("create")}
               disabled={!name.trim()}
-              className="w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg font-medium transition-colors"
+              className="w-full py-4 bg-[var(--oink-orange)] hover:bg-[var(--oink-orange-light)] disabled:bg-[var(--oink-light-gray)] disabled:text-[var(--oink-gray)] text-white rounded-2xl font-bold text-lg transition-all active:scale-[0.98] shadow-lg shadow-[var(--oink-orange)]/20"
             >
               ルームを作成
             </button>
             <button
               onClick={() => name.trim() && setMode("join")}
               disabled={!name.trim()}
-              className="w-full py-3 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:text-gray-600 text-white rounded-lg font-medium transition-colors"
+              className="w-full py-4 bg-white hover:bg-[var(--oink-light-gray)] disabled:opacity-40 text-[var(--oink-dark)] rounded-2xl font-bold text-lg transition-all active:scale-[0.98] border-2 border-[var(--oink-light-gray)]"
             >
               ルームに参加
             </button>
@@ -58,19 +63,20 @@ export function Lobby({ onSend }: Props) {
         )}
 
         {mode === "create" && (
-          <div className="space-y-4">
-            <p className="text-center text-gray-300">
-              <span className="text-amber-400">{name}</span> としてルームを作成
-            </p>
+          <div className="space-y-4 animate-fade-in">
+            <div className="bg-white rounded-2xl p-5 text-center border-2 border-[var(--oink-light-gray)]">
+              <p className="text-[var(--oink-gray)] text-sm mb-1">プレイヤー名</p>
+              <p className="text-[var(--oink-dark)] text-xl font-bold">{name}</p>
+            </div>
             <button
               onClick={handleCreate}
-              className="w-full py-3 bg-amber-600 hover:bg-amber-500 text-white rounded-lg font-medium transition-colors"
+              className="w-full py-4 bg-[var(--oink-orange)] hover:bg-[var(--oink-orange-light)] text-white rounded-2xl font-bold text-lg transition-all active:scale-[0.98] shadow-lg shadow-[var(--oink-orange)]/20"
             >
               作成する
             </button>
             <button
               onClick={() => setMode("select")}
-              className="w-full py-2 text-gray-400 hover:text-white transition-colors text-sm"
+              className="w-full py-3 text-[var(--oink-gray)] hover:text-[var(--oink-dark)] transition-colors text-sm font-medium"
             >
               戻る
             </button>
@@ -78,28 +84,29 @@ export function Lobby({ onSend }: Props) {
         )}
 
         {mode === "join" && (
-          <div className="space-y-4">
-            <p className="text-center text-gray-300">
-              <span className="text-amber-400">{name}</span> として参加
-            </p>
+          <div className="space-y-4 animate-fade-in">
+            <div className="bg-white rounded-2xl p-5 text-center border-2 border-[var(--oink-light-gray)]">
+              <p className="text-[var(--oink-gray)] text-sm mb-1">プレイヤー名</p>
+              <p className="text-[var(--oink-dark)] text-xl font-bold">{name}</p>
+            </div>
             <input
               type="text"
-              placeholder="ルームIDを入力 (4桁)"
+              placeholder="0000"
               value={roomId}
               onChange={(e) => setRoomId(e.target.value.replace(/\D/g, "").slice(0, 4))}
               maxLength={4}
-              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-amber-500 text-center text-2xl tracking-[0.5em] font-mono"
+              className="w-full px-5 py-5 bg-white border-2 border-[var(--oink-light-gray)] rounded-2xl text-[var(--oink-dark)] placeholder-[var(--oink-light-gray)] focus:outline-none focus:border-[var(--oink-teal)] text-center text-3xl tracking-[0.8em] font-black font-mono transition-colors"
             />
             <button
               onClick={handleJoin}
               disabled={roomId.length !== 4}
-              className="w-full py-3 bg-amber-600 hover:bg-amber-500 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg font-medium transition-colors"
+              className="w-full py-4 bg-[var(--oink-teal)] hover:bg-[var(--oink-teal-light)] disabled:bg-[var(--oink-light-gray)] disabled:text-[var(--oink-gray)] text-white rounded-2xl font-bold text-lg transition-all active:scale-[0.98] shadow-lg shadow-[var(--oink-teal)]/20"
             >
               参加する
             </button>
             <button
               onClick={() => setMode("select")}
-              className="w-full py-2 text-gray-400 hover:text-white transition-colors text-sm"
+              className="w-full py-3 text-[var(--oink-gray)] hover:text-[var(--oink-dark)] transition-colors text-sm font-medium"
             >
               戻る
             </button>
