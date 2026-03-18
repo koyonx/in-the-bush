@@ -5,7 +5,6 @@ import { SuspectCard } from "./SuspectCard";
 import { VictimCard } from "./VictimCard";
 import { PlayerChips } from "./PlayerChips";
 import { AlibiCard } from "./AlibiCard";
-import { DiscovererMarker } from "./DiscovererMarker";
 import type { GameData } from "../../App";
 import type { CardInfo } from "../../types";
 import * as THREE from "three";
@@ -16,7 +15,6 @@ interface Props {
   spectatorMode?: boolean;
 }
 
-/** Camera controller that looks at the table center */
 function CameraController({ spectatorMode }: { spectatorMode: boolean }) {
   const { camera } = useThree();
   const initialized = useRef(false);
@@ -24,13 +22,14 @@ function CameraController({ spectatorMode }: { spectatorMode: boolean }) {
   useEffect(() => {
     if (!initialized.current) {
       if (spectatorMode) {
-        camera.position.set(0, 10, 5);
+        camera.position.set(0, 8, 6);
+        camera.lookAt(new THREE.Vector3(0, 0, 0));
       } else {
-        // ~45 degree angle from player side, looking slightly above table
-        camera.position.set(0, 5, 6);
+        // Low angle, looking at the cards from across the table
+        // Y=3 (not too high), Z=7 (far back to see the full table)
+        camera.position.set(0, 3, 7);
+        camera.lookAt(new THREE.Vector3(0, 0.8, 0));
       }
-      // Look slightly above table center to frame standing cards
-      camera.lookAt(new THREE.Vector3(0, 0.5, 0));
       camera.updateProjectionMatrix();
       initialized.current = true;
     }
@@ -43,33 +42,27 @@ export function TableScene({ gameData, playerId, spectatorMode = false }: Props)
   const { players, discovererIndex, viewedSuspects, accusationStacks, alibiCards, roundResult, phase } = gameData;
   const myIndex = players.findIndex((p) => p.id === playerId);
 
-  // Suspect card positions (center, slightly spread, scaled up)
+  // Suspect card positions - center of table, spread horizontally
   const suspectPositions: [number, number, number][] = [
-    [-1.5, 0.05, -0.3],
-    [0, 0.05, -0.3],
-    [1.5, 0.05, -0.3],
+    [-1.8, 0, 0],
+    [0, 0, 0],
+    [1.8, 0, 0],
   ];
 
-  // Player positions around the table (excluding self)
+  // Player positions around the table
   const getPlayerPositions = (count: number): [number, number, number][] => {
     const positions: [number, number, number][] = [];
     for (let i = 0; i < count; i++) {
       const offset = spectatorMode ? 0 : -myIndex;
-      // Start from bottom-center, go clockwise
       const angle = ((i + offset) / count) * Math.PI * 2 + Math.PI / 2;
-      const radius = 3.2;
-      positions.push([
-        Math.cos(angle) * radius,
-        0.05,
-        Math.sin(angle) * radius,
-      ]);
+      const radius = 3.5;
+      positions.push([Math.cos(angle) * radius, 0, Math.sin(angle) * radius]);
     }
     return positions;
   };
 
   const playerPositions = getPlayerPositions(players.length);
 
-  // Determine what to show on suspect cards
   const getSuspectDisplay = (idx: number): { faceUp: boolean; card: CardInfo | null } => {
     if (roundResult) {
       return { faceUp: true, card: roundResult.suspects[idx] };
@@ -83,29 +76,22 @@ export function TableScene({ gameData, playerId, spectatorMode = false }: Props)
 
   return (
     <Canvas
-      camera={{ fov: 55 }}
+      camera={{ fov: 50 }}
       shadows
       style={{ background: "#1a0a0a", width: "100%", height: "100%" }}
     >
       <CameraController spectatorMode={spectatorMode} />
 
-      {/* Lighting */}
-      <ambientLight intensity={0.5} />
-      <directionalLight
-        position={[3, 10, 5]}
-        intensity={0.7}
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-      />
-      <pointLight position={[0, 5, 0]} intensity={0.5} color="#fff5e0" />
-      {/* Warm fill from player side to illuminate card faces */}
-      <pointLight position={[0, 2, 5]} intensity={0.4} color="#ffe0c0" />
+      {/* Lighting - bright enough to see everything */}
+      <ambientLight intensity={0.6} />
+      <directionalLight position={[5, 8, 8]} intensity={0.8} castShadow />
+      {/* Key light from player's side to illuminate card faces */}
+      <pointLight position={[0, 3, 8]} intensity={1.0} color="#ffffff" />
+      <pointLight position={[0, 5, 0]} intensity={0.4} color="#fff5e0" />
 
-      {/* Table */}
       <Table />
 
-      {/* Suspect Cards (center) */}
+      {/* Suspect Cards - standing in center, facing the player */}
       {suspectPositions.map((pos, i) => {
         const { faceUp, card } = getSuspectDisplay(i);
         return (
@@ -120,17 +106,14 @@ export function TableScene({ gameData, playerId, spectatorMode = false }: Props)
         );
       })}
 
-      {/* Victim Card */}
+      {/* Victim Card - laying flat in front of suspects */}
       <VictimCard
-        position={[0, 0.02, 1.2]}
+        position={[0, 0.02, 1.8]}
         card={roundResult?.victim ?? null}
         faceUp={!!roundResult}
       />
 
-      {/* Discoverer Marker */}
-      <DiscovererMarker position={[0, 0.05, -1.5]} />
-
-      {/* Player Areas with Chips */}
+      {/* Player Areas */}
       {players.map((player, i) => (
         <PlayerChips
           key={player.id}
@@ -144,10 +127,10 @@ export function TableScene({ gameData, playerId, spectatorMode = false }: Props)
         />
       ))}
 
-      {/* Alibi Card (player's hand area - in front, near bottom of view) */}
+      {/* Alibi Cards - in player's hand area */}
       {alibiCards && phase !== "round_end" && phase !== "game_over" && (
         <AlibiCard
-          position={[0, 0.1, 3.0]}
+          position={[0, 0.3, 5]}
           ownCard={alibiCards.own}
           receivedCard={alibiCards.received}
           phase={phase}
