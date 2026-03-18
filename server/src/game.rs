@@ -74,6 +74,7 @@ pub struct GameState {
     pub accusation_stacks: Vec<Vec<String>>, // 各容疑者への告発スタック [容疑者idx][player_id]
     pub round: u32,
     pub turns_done: usize,            // 今のフェーズで完了したターン数
+    pub alibi_passed: bool,           // アリバイカードが渡し済みかどうか
 }
 
 impl GameState {
@@ -97,6 +98,7 @@ impl GameState {
             accusation_stacks: vec![Vec::new(); 3],
             round: 0,
             turns_done: 0,
+            alibi_passed: false,
         };
 
         if num_players >= 3 {
@@ -122,13 +124,13 @@ impl GameState {
         }
 
         for i in 0..num_players {
-            let card = cards.pop().unwrap();
+            let card = cards.pop().expect("デッキの枚数が不足しています");
             self.alibi_cards.push(card);
             self.players[i].alibi_cards.push(card);
         }
 
         // 被害者1枚 + 容疑者3枚
-        self.victim = cards.pop().unwrap();
+        self.victim = cards.pop().expect("デッキの枚数が不足しています");
         self.suspects = cards; // 残り3枚が容疑者
 
         self.unseen_suspect = None;
@@ -137,6 +139,7 @@ impl GameState {
         self.current_turn = self.discoverer_index;
         self.turns_done = 0;
         self.round += 1;
+        self.alibi_passed = false;
         self.phase = Phase::CheckAlibi;
     }
 
@@ -144,8 +147,8 @@ impl GameState {
     fn create_deck(&self, num_players: usize) -> Vec<Card> {
         let mut cards = Vec::new();
         let start = match num_players {
-            3 => 3, // 2を除く
-            _ => 2, // 4人: 全カード使用
+            3 => 3, // 2を除く (7枚: 3人アリバイ + 1被害者 + 3容疑者)
+            _ => 2, // 4人: 全カード使用 (8枚: 4人アリバイ + 1被害者 + 3容疑者)
         };
         for i in start..=8 {
             cards.push(Card::Number(i));
@@ -155,7 +158,14 @@ impl GameState {
     }
 
     /// アリバイカードを隣のプレイヤーに渡す（右隣）
-    pub fn pass_alibi_cards(&mut self) {
+    pub fn pass_alibi_cards(&mut self) -> Result<(), String> {
+        if self.phase != Phase::CheckAlibi {
+            return Err("アリバイ確認フェーズではありません".to_string());
+        }
+        if self.alibi_passed {
+            return Err("アリバイカードは既に渡されています".to_string());
+        }
+
         let n = self.players.len();
         // 右隣のプレイヤーのカードを見る
         for i in 0..n {
@@ -163,17 +173,36 @@ impl GameState {
             let right_card = self.alibi_cards[right_idx];
             self.players[i].alibi_cards.push(right_card);
         }
+        self.alibi_passed = true;
         self.phase = Phase::Accusation;
         self.current_turn = self.discoverer_index;
         self.turns_done = 0;
+        Ok(())
     }
 
     /// 容疑者カードを見る（2枚選択）
     pub fn view_suspects(&mut self, player_id: &str, indices: [usize; 2]) -> Result<[Card; 2], String> {
+        if self.phase != Phase::Accusation {
+            return Err("告発フェーズではありません".to_string());
+        }
+
+        // インデックス境界チェック
+        if indices[0] >= 3 || indices[1] >= 3 {
+            return Err("無効な容疑者インデックスです".to_string());
+        }
+        if indices[0] == indices[1] {
+            return Err("異なる2人の容疑者を選んでください".to_string());
+        }
+
         let player_idx = self.find_player(player_id)?;
 
         if player_idx != self.current_turn {
             return Err("あなたのターンではありません".to_string());
+        }
+
+        // 既に容疑者を見ている場合は拒否
+        if !self.players[player_idx].seen_suspects.is_empty() {
+            return Err("既に容疑者を確認済みです".to_string());
         }
 
         // 発見者以外は、前のプレイヤーだけが告発した容疑者を見られない
@@ -184,9 +213,9 @@ impl GameState {
                 player_idx - 1
             };
 
-            // 前のプレイヤーだけが告発した容疑者を見つける
+            let prev_player_id = self.players[prev_idx].id.clone();
             for &idx in &indices {
-                if self.is_exclusively_accused_by(idx, &self.players[prev_idx].id) {
+                if self.is_exclusively_accused_by(idx, &prev_player_id) {
                     return Err("前のプレイヤーだけが告発した容疑者は見られません".to_string());
                 }
             }
@@ -198,7 +227,8 @@ impl GameState {
 
         // 発見者の場合、見なかったカードを記録
         if player_idx == self.discoverer_index {
-            let unseen = (0..3).find(|i| !indices.contains(i)).unwrap();
+            let unseen = (0..3usize).find(|i| !indices.contains(i))
+                .expect("3つのインデックスから2つを選んだので必ず1つ残る");
             self.unseen_suspect = Some(unseen);
         }
 
@@ -207,15 +237,31 @@ impl GameState {
 
     /// ある容疑者が特定のプレイヤーだけに告発されているか
     fn is_exclusively_accused_by(&self, suspect_idx: usize, player_id: &str) -> bool {
+        if suspect_idx >= self.accusation_stacks.len() {
+            return false;
+        }
         let stack = &self.accusation_stacks[suspect_idx];
         stack.len() == 1 && stack[0] == player_id
     }
 
     /// 発見者がすり替えを行う（容疑者と被害者を入れ替え）
     pub fn tamper(&mut self, player_id: &str, suspect_idx: usize) -> Result<(), String> {
+        if self.phase != Phase::Accusation {
+            return Err("告発フェーズではありません".to_string());
+        }
+        if suspect_idx >= 3 {
+            return Err("無効な容疑者インデックスです".to_string());
+        }
+
         let player_idx = self.find_player(player_id)?;
         if player_idx != self.discoverer_index {
             return Err("発見者のみがすり替えできます".to_string());
+        }
+        if player_idx != self.current_turn {
+            return Err("あなたのターンではありません".to_string());
+        }
+        if self.tampered_suspect.is_some() {
+            return Err("既にすり替え済みです".to_string());
         }
         if !self.players[player_idx].seen_suspects.contains(&suspect_idx) {
             return Err("見た容疑者のみすり替えできます".to_string());
@@ -228,15 +274,23 @@ impl GameState {
 
     /// 告発する
     pub fn accuse(&mut self, player_id: &str, suspect_idx: usize) -> Result<(), String> {
-        let player_idx = self.find_player(player_id)?;
-        if player_idx != self.current_turn {
-            return Err("あなたのターンではありません".to_string());
+        if self.phase != Phase::Accusation {
+            return Err("告発フェーズではありません".to_string());
         }
         if suspect_idx >= 3 {
             return Err("無効な容疑者インデックスです".to_string());
         }
 
+        let player_idx = self.find_player(player_id)?;
+        if player_idx != self.current_turn {
+            return Err("あなたのターンではありません".to_string());
+        }
+        if self.players[player_idx].accusation_chips == 0 {
+            return Err("告発チップがありません".to_string());
+        }
+
         self.players[player_idx].accusation = Some(suspect_idx);
+        self.players[player_idx].accusation_chips -= 1;
         self.accusation_stacks[suspect_idx].push(player_id.to_string());
         self.turns_done += 1;
 
@@ -262,6 +316,7 @@ impl GameState {
             .collect();
 
         if candidates.is_empty() {
+            // ブランクのみの場合（通常のゲームでは発生しない）
             return 0;
         }
 
@@ -277,7 +332,11 @@ impl GameState {
     }
 
     /// ラウンドの結果を解決する
-    pub fn resolve_round(&mut self) -> RoundResult {
+    pub fn resolve_round(&mut self) -> Result<RoundResult, String> {
+        if self.phase != Phase::Reveal {
+            return Err("結果発表フェーズではありません".to_string());
+        }
+
         let murderer_idx = self.determine_murderer();
 
         let mut penalties: Vec<(String, u8)> = Vec::new();
@@ -287,7 +346,7 @@ impl GameState {
                 continue;
             }
             // スタックの一番上（最後に告発した人）がペナルティ
-            let top_player_id = stack.last().unwrap().clone();
+            let top_player_id = stack.last().expect("スタックが空でないことは確認済み").clone();
             let penalty_count = stack.len() as u8;
 
             if let Some(player) = self.players.iter_mut().find(|p| p.id == top_player_id) {
@@ -313,7 +372,7 @@ impl GameState {
             self.phase = Phase::RoundEnd;
         }
 
-        result
+        Ok(result)
     }
 
     /// ゲーム終了チェック
@@ -324,7 +383,7 @@ impl GameState {
                 return Some(player.id.clone());
             }
         }
-        // 告発チップがすべてライアーチップになったプレイヤー
+        // 告発チップがすべてなくなったプレイヤー
         for player in &self.players {
             if player.accusation_chips == 0 {
                 return Some(player.id.clone());
@@ -334,9 +393,13 @@ impl GameState {
     }
 
     /// 次のラウンドへ
-    pub fn next_round(&mut self) {
+    pub fn next_round(&mut self) -> Result<(), String> {
+        if self.phase != Phase::RoundEnd {
+            return Err("ラウンド終了フェーズではありません".to_string());
+        }
         self.discoverer_index = (self.discoverer_index + 1) % self.players.len();
         self.setup_round();
+        Ok(())
     }
 
     fn find_player(&self, player_id: &str) -> Result<usize, String> {

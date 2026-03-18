@@ -84,11 +84,11 @@ impl RoomManager {
         }
     }
 
-    pub fn create_room(&mut self, host: Player) -> String {
-        let room_id = self.generate_room_id();
+    pub fn create_room(&mut self, host: Player) -> Result<String, String> {
+        let room_id = self.generate_room_id()?;
         let room = Room::new(room_id.clone(), host);
         self.rooms.insert(room_id.clone(), room);
-        room_id
+        Ok(room_id)
     }
 
     pub fn get_room(&self, room_id: &str) -> Option<&Room> {
@@ -103,15 +103,16 @@ impl RoomManager {
         self.rooms.remove(room_id);
     }
 
-    fn generate_room_id(&self) -> String {
+    fn generate_room_id(&self) -> Result<String, String> {
         let mut rng = rand::thread_rng();
-        loop {
+        for _ in 0..100 {
             let id: String = (0..4)
                 .map(|_| rng.gen_range(0..10).to_string())
                 .collect();
             if !self.rooms.contains_key(&id) {
-                return id;
+                return Ok(id);
             }
         }
+        Err("ルームIDを生成できませんでした。しばらくしてからお試しください".to_string())
     }
 }

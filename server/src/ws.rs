@@ -7,6 +7,21 @@ use crate::game::Phase;
 use crate::room::Player;
 use crate::SharedState;
 
+/// プレイヤー名の最大バイト長
+const MAX_NAME_LEN: usize = 48;
+
+/// プレイヤー名のバリデーション
+fn validate_name(name: &str) -> Result<String, String> {
+    let trimmed = name.trim().to_string();
+    if trimmed.is_empty() {
+        return Err("名前を入力してください".to_string());
+    }
+    if trimmed.len() > MAX_NAME_LEN {
+        return Err("名前が長すぎます".to_string());
+    }
+    Ok(trimmed)
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
 pub enum ClientMessage {
@@ -133,6 +148,50 @@ impl From<crate::game::Card> for CardInfo {
     }
 }
 
+/// エラーメッセージを送信するヘルパー
+fn send_error(tx: &mpsc::UnboundedSender<String>, message: String) {
+    let err = ServerMessage::Error { message };
+    if let Ok(json) = serde_json::to_string(&err) {
+        let _ = tx.send(json);
+    }
+}
+
+/// ゲーム開始/新ラウンド時のブロードキャスト用データを収集するヘルパー
+fn collect_round_start_messages(
+    room: &crate::room::Room,
+) -> Option<(String, Vec<(String, String)>)> {
+    let game = room.game.as_ref()?;
+    let players: Vec<PlayerInfo> = room
+        .players
+        .iter()
+        .map(|p| PlayerInfo {
+            id: p.id.clone(),
+            name: p.name.clone(),
+        })
+        .collect();
+
+    let start_msg = ServerMessage::GameStarted {
+        discoverer_index: game.discoverer_index,
+        players,
+    };
+    let start_str = serde_json::to_string(&start_msg).ok()?;
+
+    let n = game.players.len();
+    let mut alibi_msgs: Vec<(String, String)> = Vec::new();
+    for i in 0..n {
+        let own_card = game.alibi_cards[i].into();
+        let right_card = game.alibi_cards[(i + 1) % n].into();
+        let alibi_msg = ServerMessage::AlibiCards {
+            own_card,
+            received_card: right_card,
+        };
+        if let Ok(json) = serde_json::to_string(&alibi_msg) {
+            alibi_msgs.push((game.players[i].id.clone(), json));
+        }
+    }
+    Some((start_str, alibi_msgs))
+}
+
 pub async fn handle_socket(socket: WebSocket, state: SharedState) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
@@ -160,10 +219,7 @@ pub async fn handle_socket(socket: WebSocket, state: SharedState) {
                     handle_message(&state, &player_id, &tx, &mut room_id, client_msg).await;
                 }
                 Err(e) => {
-                    let err = ServerMessage::Error {
-                        message: format!("無効なメッセージ: {}", e),
-                    };
-                    let _ = tx.send(serde_json::to_string(&err).unwrap());
+                    send_error(&tx, format!("無効なメッセージ: {}", e));
                 }
             }
         }
@@ -195,7 +251,9 @@ pub async fn handle_socket(socket: WebSocket, state: SharedState) {
                     players,
                     player_name,
                 };
-                room.broadcast(&serde_json::to_string(&msg).unwrap());
+                if let Ok(json) = serde_json::to_string(&msg) {
+                    room.broadcast(&json);
+                }
                 false
             }
         } else {
@@ -218,26 +276,41 @@ async fn handle_message(
 ) {
     match msg {
         ClientMessage::CreateRoom { name } => {
+            let name = match validate_name(&name) {
+                Ok(n) => n,
+                Err(e) => { send_error(tx, e); return; }
+            };
+
             let mut state = state.write().await;
             let player = Player {
                 id: player_id.to_string(),
                 name,
                 tx: tx.clone(),
             };
-            let rid = state.create_room(player);
-            *room_id = Some(rid.clone());
-
-            let response = ServerMessage::RoomCreated {
-                room_id: rid,
-                player_id: player_id.to_string(),
-            };
-            let _ = tx.send(serde_json::to_string(&response).unwrap());
+            match state.create_room(player) {
+                Ok(rid) => {
+                    *room_id = Some(rid.clone());
+                    let response = ServerMessage::RoomCreated {
+                        room_id: rid,
+                        player_id: player_id.to_string(),
+                    };
+                    if let Ok(json) = serde_json::to_string(&response) {
+                        let _ = tx.send(json);
+                    }
+                }
+                Err(e) => { send_error(tx, e); }
+            }
         }
 
         ClientMessage::JoinRoom {
             room_id: rid,
             name,
         } => {
+            let name = match validate_name(&name) {
+                Ok(n) => n,
+                Err(e) => { send_error(tx, e); return; }
+            };
+
             let mut state = state.write().await;
             if let Some(room) = state.get_room_mut(&rid) {
                 let player = Player {
@@ -257,28 +330,24 @@ async fn handle_message(
                             })
                             .collect();
 
-                        // 参加者本人に送信
                         let response = ServerMessage::RoomJoined {
                             room_id: rid,
                             player_id: player_id.to_string(),
                             players: players.clone(),
                         };
-                        let _ = tx.send(serde_json::to_string(&response).unwrap());
+                        if let Ok(json) = serde_json::to_string(&response) {
+                            let _ = tx.send(json);
+                        }
 
-                        // 全員に通知
                         let notify = ServerMessage::PlayerJoined { players };
-                        room.broadcast(&serde_json::to_string(&notify).unwrap());
+                        if let Ok(json) = serde_json::to_string(&notify) {
+                            room.broadcast(&json);
+                        }
                     }
-                    Err(e) => {
-                        let err = ServerMessage::Error { message: e };
-                        let _ = tx.send(serde_json::to_string(&err).unwrap());
-                    }
+                    Err(e) => { send_error(tx, e); }
                 }
             } else {
-                let err = ServerMessage::Error {
-                    message: "ルームが見つかりません".to_string(),
-                };
-                let _ = tx.send(serde_json::to_string(&err).unwrap());
+                send_error(tx, "ルームが見つかりません".to_string());
             }
         }
 
@@ -287,57 +356,19 @@ async fn handle_message(
             if let Some(rid) = room_id {
                 if let Some(room) = state.get_room_mut(rid) {
                     if room.host_id != player_id {
-                        let err = ServerMessage::Error {
-                            message: "ホストのみがゲームを開始できます".to_string(),
-                        };
-                        let _ = tx.send(serde_json::to_string(&err).unwrap());
+                        send_error(tx, "ホストのみがゲームを開始できます".to_string());
                         return;
                     }
                     match room.start_game() {
                         Ok(()) => {
-                            let (start_str, alibi_msgs) = {
-                                let game = room.game.as_ref().unwrap();
-                                let players: Vec<PlayerInfo> = room
-                                    .players
-                                    .iter()
-                                    .map(|p| PlayerInfo {
-                                        id: p.id.clone(),
-                                        name: p.name.clone(),
-                                    })
-                                    .collect();
-
-                                let start_msg = ServerMessage::GameStarted {
-                                    discoverer_index: game.discoverer_index,
-                                    players,
-                                };
-                                let start_str = serde_json::to_string(&start_msg).unwrap();
-
-                                let n = game.players.len();
-                                let mut msgs: Vec<(String, String)> = Vec::new();
-                                for i in 0..n {
-                                    let own_card = game.alibi_cards[i].into();
-                                    let right_card = game.alibi_cards[(i + 1) % n].into();
-                                    let alibi_msg = ServerMessage::AlibiCards {
-                                        own_card,
-                                        received_card: right_card,
-                                    };
-                                    msgs.push((
-                                        game.players[i].id.clone(),
-                                        serde_json::to_string(&alibi_msg).unwrap(),
-                                    ));
+                            if let Some((start_str, alibi_msgs)) = collect_round_start_messages(room) {
+                                room.broadcast(&start_str);
+                                for (pid, msg) in &alibi_msgs {
+                                    room.send_to(pid, msg);
                                 }
-                                (start_str, msgs)
-                            };
-
-                            room.broadcast(&start_str);
-                            for (pid, msg) in &alibi_msgs {
-                                room.send_to(pid, msg);
                             }
                         }
-                        Err(e) => {
-                            let err = ServerMessage::Error { message: e };
-                            let _ = tx.send(serde_json::to_string(&err).unwrap());
-                        }
+                        Err(e) => { send_error(tx, e); }
                     }
                 }
             }
@@ -348,12 +379,18 @@ async fn handle_message(
             if let Some(rid) = room_id {
                 if let Some(room) = state.get_room_mut(rid) {
                     if let Some(game) = &mut room.game {
-                        game.pass_alibi_cards();
-                        let phase_msg = ServerMessage::AccusationPhase {
-                            current_turn: game.current_turn,
-                            is_discoverer: true,
-                        };
-                        room.broadcast(&serde_json::to_string(&phase_msg).unwrap());
+                        match game.pass_alibi_cards() {
+                            Ok(()) => {
+                                let phase_msg = ServerMessage::AccusationPhase {
+                                    current_turn: game.current_turn,
+                                    is_discoverer: true,
+                                };
+                                if let Ok(json) = serde_json::to_string(&phase_msg) {
+                                    room.broadcast(&json);
+                                }
+                            }
+                            Err(e) => { send_error(tx, e); }
+                        }
                     }
                 }
             }
@@ -370,15 +407,11 @@ async fn handle_message(
                                     cards: [cards[0].into(), cards[1].into()],
                                     indices,
                                 };
-                                room.send_to(
-                                    player_id,
-                                    &serde_json::to_string(&response).unwrap(),
-                                );
+                                if let Ok(json) = serde_json::to_string(&response) {
+                                    room.send_to(player_id, &json);
+                                }
                             }
-                            Err(e) => {
-                                let err = ServerMessage::Error { message: e };
-                                let _ = tx.send(serde_json::to_string(&err).unwrap());
-                            }
+                            Err(e) => { send_error(tx, e); }
                         }
                     }
                 }
@@ -396,12 +429,11 @@ async fn handle_message(
                                     action: "accuse".to_string(),
                                     current_player: game.players[game.current_turn].name.clone(),
                                 };
-                                room.broadcast(&serde_json::to_string(&waiting).unwrap());
+                                if let Ok(json) = serde_json::to_string(&waiting) {
+                                    room.broadcast(&json);
+                                }
                             }
-                            Err(e) => {
-                                let err = ServerMessage::Error { message: e };
-                                let _ = tx.send(serde_json::to_string(&err).unwrap());
-                            }
+                            Err(e) => { send_error(tx, e); }
                         }
                     }
                 }
@@ -409,15 +441,32 @@ async fn handle_message(
         }
 
         ClientMessage::SkipTamper => {
-            let state_guard = state.read().await;
+            let mut state = state.write().await;
             if let Some(rid) = room_id {
-                if let Some(room) = state_guard.get_room(rid) {
-                    if let Some(game) = &room.game {
+                if let Some(room) = state.get_room_mut(rid) {
+                    if let Some(game) = &mut room.game {
+                        // 発見者のみスキップ可能、告発フェーズのみ
+                        if game.phase != Phase::Accusation {
+                            send_error(tx, "告発フェーズではありません".to_string());
+                            return;
+                        }
+                        let player_idx = game.players.iter().position(|p| p.id == player_id);
+                        if player_idx != Some(game.discoverer_index) {
+                            send_error(tx, "発見者のみがすり替えをスキップできます".to_string());
+                            return;
+                        }
+                        if player_idx != Some(game.current_turn) {
+                            send_error(tx, "あなたのターンではありません".to_string());
+                            return;
+                        }
+
                         let waiting = ServerMessage::WaitingForAction {
                             action: "accuse".to_string(),
                             current_player: game.players[game.current_turn].name.clone(),
                         };
-                        room.broadcast(&serde_json::to_string(&waiting).unwrap());
+                        if let Ok(json) = serde_json::to_string(&waiting) {
+                            room.broadcast(&json);
+                        }
                     }
                 }
             }
@@ -444,12 +493,11 @@ async fn handle_message(
                                     current_turn: game.current_turn,
                                     all_done,
                                 };
-                                room.broadcast(&serde_json::to_string(&msg).unwrap());
+                                if let Ok(json) = serde_json::to_string(&msg) {
+                                    room.broadcast(&json);
+                                }
                             }
-                            Err(e) => {
-                                let err = ServerMessage::Error { message: e };
-                                let _ = tx.send(serde_json::to_string(&err).unwrap());
-                            }
+                            Err(e) => { send_error(tx, e); }
                         }
                     }
                 }
@@ -461,53 +509,59 @@ async fn handle_message(
             if let Some(rid) = room_id {
                 if let Some(room) = state.get_room_mut(rid) {
                     if let Some(game) = &mut room.game {
-                        let result = game.resolve_round();
-                        let loser_info = result.loser.as_ref().and_then(|lid| {
-                            game.players.iter().find(|p| p.id == *lid).map(|p| {
-                                PlayerInfo {
-                                    id: p.id.clone(),
-                                    name: p.name.clone(),
-                                }
-                            })
-                        });
+                        match game.resolve_round() {
+                            Ok(result) => {
+                                let loser_info = result.loser.as_ref().and_then(|lid| {
+                                    game.players.iter().find(|p| p.id == *lid).map(|p| {
+                                        PlayerInfo {
+                                            id: p.id.clone(),
+                                            name: p.name.clone(),
+                                        }
+                                    })
+                                });
 
-                        let players_score: Vec<PlayerScoreInfo> = game
-                            .players
-                            .iter()
-                            .map(|p| PlayerScoreInfo {
-                                name: p.name.clone(),
-                                accusation_chips: p.accusation_chips,
-                                liar_chips: p.liar_chips,
-                                total: p.total_chips(),
-                            })
-                            .collect();
-
-                        let penalties: Vec<PenaltyInfo> = result
-                            .penalties
-                            .iter()
-                            .map(|(pid, count)| {
-                                let name = game
+                                let players_score: Vec<PlayerScoreInfo> = game
                                     .players
                                     .iter()
-                                    .find(|p| p.id == *pid)
-                                    .map(|p| p.name.clone())
-                                    .unwrap_or_default();
-                                PenaltyInfo {
-                                    player_name: name,
-                                    count: *count,
-                                }
-                            })
-                            .collect();
+                                    .map(|p| PlayerScoreInfo {
+                                        name: p.name.clone(),
+                                        accusation_chips: p.accusation_chips,
+                                        liar_chips: p.liar_chips,
+                                        total: p.total_chips(),
+                                    })
+                                    .collect();
 
-                        let msg = ServerMessage::RoundResult {
-                            murderer_idx: result.murderer_idx,
-                            suspects: result.suspects.into_iter().map(|c| c.into()).collect(),
-                            victim: result.victim.into(),
-                            penalties,
-                            loser: loser_info,
-                            players: players_score,
-                        };
-                        room.broadcast(&serde_json::to_string(&msg).unwrap());
+                                let penalties: Vec<PenaltyInfo> = result
+                                    .penalties
+                                    .iter()
+                                    .map(|(pid, count)| {
+                                        let name = game
+                                            .players
+                                            .iter()
+                                            .find(|p| p.id == *pid)
+                                            .map(|p| p.name.clone())
+                                            .unwrap_or_default();
+                                        PenaltyInfo {
+                                            player_name: name,
+                                            count: *count,
+                                        }
+                                    })
+                                    .collect();
+
+                                let msg = ServerMessage::RoundResult {
+                                    murderer_idx: result.murderer_idx,
+                                    suspects: result.suspects.into_iter().map(|c| c.into()).collect(),
+                                    victim: result.victim.into(),
+                                    penalties,
+                                    loser: loser_info,
+                                    players: players_score,
+                                };
+                                if let Ok(json) = serde_json::to_string(&msg) {
+                                    room.broadcast(&json);
+                                }
+                            }
+                            Err(e) => { send_error(tx, e); }
+                        }
                     }
                 }
             }
@@ -517,48 +571,21 @@ async fn handle_message(
             let mut state = state.write().await;
             if let Some(rid) = room_id {
                 if let Some(room) = state.get_room_mut(rid) {
-                    if let Some(game) = &mut room.game {
-                        game.next_round();
+                    // next_round のフェーズチェックはゲームロジック側で行う
+                    let next_result = room.game.as_mut().and_then(|game| {
+                        game.next_round().err()
+                    });
+
+                    if let Some(e) = next_result {
+                        send_error(tx, e);
+                        return;
                     }
 
-                    // Collect data after releasing mutable borrow on game
-                    let (start_msg_str, alibi_msgs) = {
-                        let game = room.game.as_ref().unwrap();
-                        let players: Vec<PlayerInfo> = room
-                            .players
-                            .iter()
-                            .map(|p| PlayerInfo {
-                                id: p.id.clone(),
-                                name: p.name.clone(),
-                            })
-                            .collect();
-
-                        let start_msg = ServerMessage::GameStarted {
-                            discoverer_index: game.discoverer_index,
-                            players,
-                        };
-                        let start_str = serde_json::to_string(&start_msg).unwrap();
-
-                        let n = game.players.len();
-                        let mut msgs: Vec<(String, String)> = Vec::new();
-                        for i in 0..n {
-                            let own_card = game.alibi_cards[i].into();
-                            let right_card = game.alibi_cards[(i + 1) % n].into();
-                            let alibi_msg = ServerMessage::AlibiCards {
-                                own_card,
-                                received_card: right_card,
-                            };
-                            msgs.push((
-                                game.players[i].id.clone(),
-                                serde_json::to_string(&alibi_msg).unwrap(),
-                            ));
+                    if let Some((start_str, alibi_msgs)) = collect_round_start_messages(room) {
+                        room.broadcast(&start_str);
+                        for (pid, msg) in &alibi_msgs {
+                            room.send_to(pid, msg);
                         }
-                        (start_str, msgs)
-                    };
-
-                    room.broadcast(&start_msg_str);
-                    for (pid, msg) in &alibi_msgs {
-                        room.send_to(pid, msg);
                     }
                 }
             }
