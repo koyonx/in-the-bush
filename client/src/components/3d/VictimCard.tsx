@@ -13,7 +13,7 @@ export function VictimCard({ position, card, faceUp }: Props) {
     : "";
 
   return (
-    <group position={position}>
+    <group position={position} scale={1.3}>
       {/* Laying flat on table */}
       <mesh castShadow rotation={[-Math.PI / 2, 0, 0]}>
         <boxGeometry args={[1.0, 0.6, 0.04]} />
@@ -27,12 +27,13 @@ export function VictimCard({ position, card, faceUp }: Props) {
       {/* Value text */}
       {faceUp && (
         <Text
-          position={[0, 0.03, 0]}
+          position={[0, 0.05, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
           fontSize={0.25}
           color="#2D2926"
           anchorX="center"
           anchorY="middle"
+          depthOffset={-1}
         >
           {displayValue}
         </Text>
@@ -41,12 +42,13 @@ export function VictimCard({ position, card, faceUp }: Props) {
       {/* "VICTIM" label when face up */}
       {faceUp && (
         <Text
-          position={[0, 0.03, 0.18]}
+          position={[0, 0.05, 0.18]}
           rotation={[-Math.PI / 2, 0, 0]}
           fontSize={0.08}
           color="#8D8680"
           anchorX="center"
           anchorY="middle"
+          depthOffset={-1}
         >
           VICTIM
         </Text>

@@ -24,12 +24,13 @@ function CameraController({ spectatorMode }: { spectatorMode: boolean }) {
   useEffect(() => {
     if (!initialized.current) {
       if (spectatorMode) {
-        camera.position.set(0, 12, 0.5);
+        camera.position.set(0, 10, 5);
       } else {
-        // Angled from player side, looking down at center
-        camera.position.set(0, 7, 4);
+        // ~45 degree angle from player side, looking slightly above table
+        camera.position.set(0, 5, 6);
       }
-      camera.lookAt(new THREE.Vector3(0, 0, 0));
+      // Look slightly above table center to frame standing cards
+      camera.lookAt(new THREE.Vector3(0, 0.5, 0));
       camera.updateProjectionMatrix();
       initialized.current = true;
     }
@@ -42,11 +43,11 @@ export function TableScene({ gameData, playerId, spectatorMode = false }: Props)
   const { players, discovererIndex, viewedSuspects, accusationStacks, alibiCards, roundResult, phase } = gameData;
   const myIndex = players.findIndex((p) => p.id === playerId);
 
-  // Suspect card positions (center, slightly spread)
+  // Suspect card positions (center, slightly spread, scaled up)
   const suspectPositions: [number, number, number][] = [
-    [-1.3, 0.05, 0],
-    [0, 0.05, 0],
-    [1.3, 0.05, 0],
+    [-1.5, 0.05, -0.3],
+    [0, 0.05, -0.3],
+    [1.5, 0.05, -0.3],
   ];
 
   // Player positions around the table (excluding self)
@@ -98,8 +99,8 @@ export function TableScene({ gameData, playerId, spectatorMode = false }: Props)
         shadow-mapSize-height={1024}
       />
       <pointLight position={[0, 5, 0]} intensity={0.5} color="#fff5e0" />
-      {/* Warm fill from below to see the card faces */}
-      <pointLight position={[0, 2, 3]} intensity={0.3} color="#ffe0c0" />
+      {/* Warm fill from player side to illuminate card faces */}
+      <pointLight position={[0, 2, 5]} intensity={0.4} color="#ffe0c0" />
 
       {/* Table */}
       <Table />
@@ -146,7 +147,7 @@ export function TableScene({ gameData, playerId, spectatorMode = false }: Props)
       {/* Alibi Card (player's hand area - in front, near bottom of view) */}
       {alibiCards && phase !== "round_end" && phase !== "game_over" && (
         <AlibiCard
-          position={[0, 0.1, 3.5]}
+          position={[0, 0.1, 3.0]}
           ownCard={alibiCards.own}
           receivedCard={alibiCards.received}
           phase={phase}

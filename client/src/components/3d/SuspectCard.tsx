@@ -29,8 +29,9 @@ export function SuspectCard({ position, index, faceUp, card, isMurderer = false 
   const isFive = card?.value === 5;
 
   // Person-shaped card (tall rectangle with rounded head)
+  // Tilt slightly toward the player (positive Z) so the face is visible
   return (
-    <group ref={groupRef} position={position}>
+    <group ref={groupRef} position={position} rotation={[0.25, 0, 0]} scale={1.3}>
       {/* Body (standing upright) */}
       <mesh castShadow position={[0, 0.6, 0]}>
         <boxGeometry args={[0.7, 1.2, 0.06]} />
@@ -54,11 +55,12 @@ export function SuspectCard({ position, index, faceUp, card, isMurderer = false 
       {/* Number on the card body */}
       {faceUp && (
         <Text
-          position={[0, 0.6, 0.04]}
+          position={[0, 0.6, 0.05]}
           fontSize={0.4}
           color={isFive ? "#E63946" : "#2D2926"}
           anchorX="center"
           anchorY="middle"
+          depthOffset={-1}
         >
           {displayValue}
         </Text>

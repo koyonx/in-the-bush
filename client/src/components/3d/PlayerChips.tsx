@@ -48,13 +48,14 @@ export function PlayerChips({
           />
         </mesh>
         <Text
-          position={[0, 0.03, 0]}
+          position={[0, 0.05, 0]}
           rotation={[-Math.PI / 2, 0, 0]}
           fontSize={0.15}
           color={isCurrentPlayer ? "#FFFFFF" : "#2D2926"}
           anchorX="center"
           anchorY="middle"
           maxWidth={1}
+          depthOffset={-1}
         >
           {playerName}
         </Text>
@@ -87,12 +88,13 @@ export function PlayerChips({
             <meshStandardMaterial color="#FFFFFF" roughness={0.5} />
           </mesh>
           <Text
-            position={[0, 0.04, 0]}
+            position={[0, 0.06, 0]}
             rotation={[-Math.PI / 2, 0, 0]}
             fontSize={0.12}
             color="#2D2926"
             anchorX="center"
             anchorY="middle"
+            depthOffset={-1}
           >
             &#128269;
           </Text>
