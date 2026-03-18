@@ -33,6 +33,29 @@ pub enum Phase {
     GameOver,          // ゲーム終了
 }
 
+/// 人数に応じた初期告発チップ数
+/// 4人基準(5枚)から、人数増加に応じてチップを増やし
+/// ゲームが短すぎないようにする
+fn initial_chips(num_players: usize) -> u8 {
+    match num_players {
+        2..=4 => 5,
+        5..=6 => 6,
+        7..=8 => 7,
+        _ => 8, // 9-10人
+    }
+}
+
+/// 人数に応じたゲーム終了チップ閾値
+/// 大人数ではペナルティが集中しやすいため閾値を上げる
+fn chip_limit(num_players: usize) -> u8 {
+    match num_players {
+        2..=4 => 8,
+        5..=6 => 10,
+        7..=8 => 12,
+        _ => 14, // 9-10人
+    }
+}
+
 /// 各プレイヤーの状態
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerState {
@@ -46,11 +69,11 @@ pub struct PlayerState {
 }
 
 impl PlayerState {
-    pub fn new(id: String, name: String) -> Self {
+    pub fn new(id: String, name: String, num_players: usize) -> Self {
         Self {
             id,
             name,
-            accusation_chips: 5,
+            accusation_chips: initial_chips(num_players),
             liar_chips: 0,
             alibi_cards: Vec::new(),
             seen_suspects: Vec::new(),
@@ -86,7 +109,7 @@ impl GameState {
         let num_players = player_ids.len();
         let players: Vec<PlayerState> = player_ids
             .into_iter()
-            .map(|(id, name)| PlayerState::new(id, name))
+            .map(|(id, name)| PlayerState::new(id, name, num_players))
             .collect();
 
         let mut state = Self {
@@ -405,9 +428,10 @@ impl GameState {
 
     /// ゲーム終了チェック
     fn check_game_over(&self) -> Option<String> {
-        // 8枚以上持っているプレイヤー
+        let limit = chip_limit(self.players.len());
+        // 閾値以上のチップを持っているプレイヤー
         for player in &self.players {
-            if player.total_chips() >= 8 {
+            if player.total_chips() >= limit {
                 return Some(player.id.clone());
             }
         }
