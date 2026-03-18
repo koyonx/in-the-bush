@@ -2,7 +2,11 @@ use rand::seq::SliceRandom;
 use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 
-/// カードの種類: 数字カード(2-8)とブランクカード
+/// プレイヤー数の範囲
+pub const MIN_PLAYERS: usize = 2;
+pub const MAX_PLAYERS: usize = 10;
+
+/// カードの種類: 数字カードとブランクカード
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Card {
     Number(u8),
@@ -29,6 +33,29 @@ pub enum Phase {
     GameOver,          // ゲーム終了
 }
 
+/// 人数に応じた初期告発チップ数
+/// 4人基準(5枚)から、人数増加に応じてチップを増やし
+/// ゲームが短すぎないようにする
+fn initial_chips(num_players: usize) -> u8 {
+    match num_players {
+        2..=4 => 5,
+        5..=6 => 6,
+        7..=8 => 7,
+        _ => 8, // 9-10人
+    }
+}
+
+/// 人数に応じたゲーム終了チップ閾値
+/// 大人数ではペナルティが集中しやすいため閾値を上げる
+fn chip_limit(num_players: usize) -> u8 {
+    match num_players {
+        2..=4 => 8,
+        5..=6 => 10,
+        7..=8 => 12,
+        _ => 14, // 9-10人
+    }
+}
+
 /// 各プレイヤーの状態
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlayerState {
@@ -42,11 +69,11 @@ pub struct PlayerState {
 }
 
 impl PlayerState {
-    pub fn new(id: String, name: String) -> Self {
+    pub fn new(id: String, name: String, num_players: usize) -> Self {
         Self {
             id,
             name,
-            accusation_chips: 5,
+            accusation_chips: initial_chips(num_players),
             liar_chips: 0,
             alibi_cards: Vec::new(),
             seen_suspects: Vec::new(),
@@ -82,7 +109,7 @@ impl GameState {
         let num_players = player_ids.len();
         let players: Vec<PlayerState> = player_ids
             .into_iter()
-            .map(|(id, name)| PlayerState::new(id, name))
+            .map(|(id, name)| PlayerState::new(id, name, num_players))
             .collect();
 
         let mut state = Self {
@@ -101,7 +128,7 @@ impl GameState {
             alibi_passed: false,
         };
 
-        if num_players >= 3 {
+        if num_players >= MIN_PLAYERS {
             state.setup_round();
         }
 
@@ -132,6 +159,7 @@ impl GameState {
         // 被害者1枚 + 容疑者3枚
         self.victim = cards.pop().expect("デッキの枚数が不足しています");
         self.suspects = cards; // 残り3枚が容疑者
+        assert_eq!(self.suspects.len(), 3, "容疑者は常に3人でなければなりません");
 
         self.unseen_suspect = None;
         self.tampered_suspect = None;
@@ -144,13 +172,33 @@ impl GameState {
     }
 
     /// プレイヤー数に応じたデッキ作成
+    /// N人 → N + 4枚必要 (Nアリバイ + 1被害者 + 3容疑者)
+    /// 数字カード: N + 3枚 + Blank 1枚 = N + 4枚
+    ///
+    /// | 人数 | 枚数 | 数字範囲     |
+    /// |------|------|-------------|
+    /// | 2    | 6    | 4-8 + Blank |
+    /// | 3    | 7    | 3-8 + Blank |
+    /// | 4    | 8    | 2-8 + Blank |
+    /// | 5    | 9    | 2-9 + Blank |
+    /// | 6    | 10   | 2-10+ Blank |
+    /// | ...  | ...  | ...         |
+    /// | 10   | 14   | 2-14+ Blank |
     fn create_deck(&self, num_players: usize) -> Vec<Card> {
         let mut cards = Vec::new();
-        let start = match num_players {
-            3 => 3, // 2を除く (7枚: 3人アリバイ + 1被害者 + 3容疑者)
-            _ => 2, // 4人: 全カード使用 (8枚: 4人アリバイ + 1被害者 + 3容疑者)
+        let num_number_cards = num_players + 3; // Blank を除く数字カードの枚数
+
+        // 4人以下: 上限8固定で下限を上げる (4→2, 3→3, 2→4)
+        // 5人以上: 下限2固定で上限を伸ばす
+        let (start, end) = if num_players <= 4 {
+            let start = (8 + 1) - num_number_cards as u8; // 4人→2, 3人→3, 2人→4
+            (start, 8u8)
+        } else {
+            let end = num_number_cards as u8 + 1; // 5人→9, 6→10, ... 10→14
+            (2u8, end)
         };
-        for i in start..=8 {
+
+        for i in start..=end {
             cards.push(Card::Number(i));
         }
         cards.push(Card::Blank);
@@ -158,6 +206,7 @@ impl GameState {
     }
 
     /// アリバイカードを隣のプレイヤーに渡す（右隣）
+    /// 2人プレイ時はアリバイ渡しをスキップ（自分のカードのみ確認）
     pub fn pass_alibi_cards(&mut self) -> Result<(), String> {
         if self.phase != Phase::CheckAlibi {
             return Err("アリバイ確認フェーズではありません".to_string());
@@ -167,11 +216,13 @@ impl GameState {
         }
 
         let n = self.players.len();
-        // 右隣のプレイヤーのカードを見る
-        for i in 0..n {
-            let right_idx = (i + 1) % n;
-            let right_card = self.alibi_cards[right_idx];
-            self.players[i].alibi_cards.push(right_card);
+        // 2人プレイ時はアリバイ渡しをスキップ（情報過多を防ぐ）
+        if n > 2 {
+            for i in 0..n {
+                let right_idx = (i + 1) % n;
+                let right_card = self.alibi_cards[right_idx];
+                self.players[i].alibi_cards.push(right_card);
+            }
         }
         self.alibi_passed = true;
         self.phase = Phase::Accusation;
@@ -377,9 +428,10 @@ impl GameState {
 
     /// ゲーム終了チェック
     fn check_game_over(&self) -> Option<String> {
-        // 8枚以上持っているプレイヤー
+        let limit = chip_limit(self.players.len());
+        // 閾値以上のチップを持っているプレイヤー
         for player in &self.players {
-            if player.total_chips() >= 8 {
+            if player.total_chips() >= limit {
                 return Some(player.id.clone());
             }
         }
