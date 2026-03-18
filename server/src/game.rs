@@ -136,6 +136,7 @@ impl GameState {
         // 被害者1枚 + 容疑者3枚
         self.victim = cards.pop().expect("デッキの枚数が不足しています");
         self.suspects = cards; // 残り3枚が容疑者
+        assert_eq!(self.suspects.len(), 3, "容疑者は常に3人でなければなりません");
 
         self.unseen_suspect = None;
         self.tampered_suspect = None;
@@ -182,6 +183,7 @@ impl GameState {
     }
 
     /// アリバイカードを隣のプレイヤーに渡す（右隣）
+    /// 2人プレイ時はアリバイ渡しをスキップ（自分のカードのみ確認）
     pub fn pass_alibi_cards(&mut self) -> Result<(), String> {
         if self.phase != Phase::CheckAlibi {
             return Err("アリバイ確認フェーズではありません".to_string());
@@ -191,11 +193,13 @@ impl GameState {
         }
 
         let n = self.players.len();
-        // 右隣のプレイヤーのカードを見る
-        for i in 0..n {
-            let right_idx = (i + 1) % n;
-            let right_card = self.alibi_cards[right_idx];
-            self.players[i].alibi_cards.push(right_card);
+        // 2人プレイ時はアリバイ渡しをスキップ（情報過多を防ぐ）
+        if n > 2 {
+            for i in 0..n {
+                let right_idx = (i + 1) % n;
+                let right_card = self.alibi_cards[right_idx];
+                self.players[i].alibi_cards.push(right_card);
+            }
         }
         self.alibi_passed = true;
         self.phase = Phase::Accusation;

@@ -18,7 +18,7 @@ export interface GameData {
   players: PlayerInfo[];
   discovererIndex: number;
   currentTurn: number;
-  alibiCards: { own: CardInfo; received: CardInfo } | null;
+  alibiCards: { own: CardInfo; received: CardInfo | null } | null;
   viewedSuspects: { cards: [CardInfo, CardInfo]; indices: [number, number] } | null;
   phase: "alibi" | "view_suspects" | "tamper" | "accuse" | "waiting" | "reveal" | "round_end" | "game_over";
   isDiscoverer: boolean;
