@@ -1,13 +1,100 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap');
 @import "tailwindcss";
+
+:root {
+  --oink-cream: #FFF8F0;
+  --oink-dark: #2D2926;
+  --oink-orange: #FF6B35;
+  --oink-orange-light: #FF8C5A;
+  --oink-teal: #00B4A6;
+  --oink-teal-light: #4DD9CD;
+  --oink-red: #E63946;
+  --oink-blue: #457B9D;
+  --oink-yellow: #FFB800;
+  --oink-gray: #8D8680;
+  --oink-light-gray: #E8E2DA;
+}
 
 body {
   margin: 0;
-  font-family: "Noto Sans JP", system-ui, sans-serif;
-  background: #1a1a2e;
-  color: #e0e0e0;
+  font-family: "M PLUS Rounded 1c", "Noto Sans JP", system-ui, sans-serif;
+  background: var(--oink-cream);
+  color: var(--oink-dark);
   min-height: 100svh;
+  overflow-x: hidden;
 }
 
 #root {
   min-height: 100svh;
 }
+
+/* Animations */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes cardFlip {
+  0% { transform: rotateY(0deg); }
+  50% { transform: rotateY(90deg); }
+  100% { transform: rotateY(0deg); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.5s ease-out both;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out both;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.animate-card-flip {
+  animation: cardFlip 0.6s ease-in-out;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.3s ease-out both;
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 1.5s ease-in-out infinite;
+}
+
+.stagger-1 { animation-delay: 0.05s; }
+.stagger-2 { animation-delay: 0.1s; }
+.stagger-3 { animation-delay: 0.15s; }
+.stagger-4 { animation-delay: 0.2s; }
+.stagger-5 { animation-delay: 0.25s; }
