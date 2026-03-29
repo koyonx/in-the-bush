@@ -102,10 +102,12 @@ pub struct GameState {
     pub round: u32,
     pub turns_done: usize,            // 今のフェーズで完了したターン数
     pub alibi_passed: bool,           // アリバイカードが渡し済みかどうか
+    pub alibi_confirmed: Vec<bool>,   // 各プレイヤーのアリバイ確認状態
+    pub tamper_enabled: bool,         // すり替えルールの有効/無効
 }
 
 impl GameState {
-    pub fn new(player_ids: Vec<(String, String)>) -> Self {
+    pub fn new(player_ids: Vec<(String, String)>, tamper_enabled: bool) -> Self {
         let num_players = player_ids.len();
         let players: Vec<PlayerState> = player_ids
             .into_iter()
@@ -126,6 +128,8 @@ impl GameState {
             round: 0,
             turns_done: 0,
             alibi_passed: false,
+            alibi_confirmed: vec![false; num_players],
+            tamper_enabled,
         };
 
         if num_players >= MIN_PLAYERS {
@@ -168,6 +172,7 @@ impl GameState {
         self.turns_done = 0;
         self.round += 1;
         self.alibi_passed = false;
+        self.alibi_confirmed = vec![false; num_players];
         self.phase = Phase::CheckAlibi;
     }
 
@@ -205,9 +210,10 @@ impl GameState {
         cards
     }
 
-    /// アリバイカードを隣のプレイヤーに渡す（右隣）
-    /// 2人プレイ時はアリバイ渡しをスキップ（自分のカードのみ確認）
-    pub fn pass_alibi_cards(&mut self) -> Result<(), String> {
+    /// プレイヤーがアリバイ確認を完了する
+    /// 全員が確認したらアリバイカードを渡してフェーズ遷移
+    /// 戻り値: Ok(true) = 全員確認完了・フェーズ遷移, Ok(false) = まだ待ち
+    pub fn confirm_alibi(&mut self, player_id: &str) -> Result<bool, String> {
         if self.phase != Phase::CheckAlibi {
             return Err("アリバイ確認フェーズではありません".to_string());
         }
@@ -215,20 +221,32 @@ impl GameState {
             return Err("アリバイカードは既に渡されています".to_string());
         }
 
-        let n = self.players.len();
-        // 2人プレイ時はアリバイ渡しをスキップ（情報過多を防ぐ）
-        if n > 2 {
-            for i in 0..n {
-                let right_idx = (i + 1) % n;
-                let right_card = self.alibi_cards[right_idx];
-                self.players[i].alibi_cards.push(right_card);
-            }
+        let player_idx = self.find_player(player_id)?;
+        if self.alibi_confirmed[player_idx] {
+            return Err("既に確認済みです".to_string());
         }
-        self.alibi_passed = true;
-        self.phase = Phase::Accusation;
-        self.current_turn = self.discoverer_index;
-        self.turns_done = 0;
-        Ok(())
+
+        self.alibi_confirmed[player_idx] = true;
+
+        // 全員確認したか？
+        if self.alibi_confirmed.iter().all(|&c| c) {
+            let n = self.players.len();
+            // 2人プレイ時はアリバイ渡しをスキップ（情報過多を防ぐ）
+            if n > 2 {
+                for i in 0..n {
+                    let right_idx = (i + 1) % n;
+                    let right_card = self.alibi_cards[right_idx];
+                    self.players[i].alibi_cards.push(right_card);
+                }
+            }
+            self.alibi_passed = true;
+            self.phase = Phase::Accusation;
+            self.current_turn = self.discoverer_index;
+            self.turns_done = 0;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     /// 容疑者カードを見る（2枚選択）
@@ -297,6 +315,9 @@ impl GameState {
 
     /// 発見者がすり替えを行う（容疑者と被害者を入れ替え）
     pub fn tamper(&mut self, player_id: &str, suspect_idx: usize) -> Result<(), String> {
+        if !self.tamper_enabled {
+            return Err("すり替えルールは無効です".to_string());
+        }
         if self.phase != Phase::Accusation {
             return Err("告発フェーズではありません".to_string());
         }

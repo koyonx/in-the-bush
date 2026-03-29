@@ -22,6 +22,8 @@ fn validate_name(name: &str) -> Result<String, String> {
     Ok(trimmed)
 }
 
+fn default_true() -> bool { true }
+
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
 pub enum ClientMessage {
@@ -30,7 +32,10 @@ pub enum ClientMessage {
     #[serde(rename = "join_room")]
     JoinRoom { room_id: String, name: String },
     #[serde(rename = "start_game")]
-    StartGame,
+    StartGame {
+        #[serde(default = "default_true")]
+        tamper_enabled: bool,
+    },
     #[serde(rename = "pass_alibi")]
     PassAlibi,
     #[serde(rename = "view_suspects")]
@@ -66,6 +71,7 @@ pub enum ServerMessage {
     GameStarted {
         discoverer_index: usize,
         players: Vec<PlayerInfo>,
+        tamper_enabled: bool,
     },
     #[serde(rename = "alibi_cards")]
     AlibiCards {
@@ -173,6 +179,7 @@ fn collect_round_start_messages(
     let start_msg = ServerMessage::GameStarted {
         discoverer_index: game.discoverer_index,
         players,
+        tamper_enabled: game.tamper_enabled,
     };
     let start_str = serde_json::to_string(&start_msg).ok()?;
 
@@ -356,7 +363,7 @@ async fn handle_message(
             }
         }
 
-        ClientMessage::StartGame => {
+        ClientMessage::StartGame { tamper_enabled } => {
             let mut state = state.write().await;
             if let Some(rid) = room_id {
                 if let Some(room) = state.get_room_mut(rid) {
@@ -364,6 +371,7 @@ async fn handle_message(
                         send_error(tx, "ホストのみがゲームを開始できます".to_string());
                         return;
                     }
+                    room.tamper_enabled = tamper_enabled;
                     match room.start_game() {
                         Ok(()) => {
                             if let Some((start_str, alibi_msgs)) = collect_round_start_messages(room) {
@@ -383,19 +391,30 @@ async fn handle_message(
             let mut state = state.write().await;
             if let Some(rid) = room_id {
                 if let Some(room) = state.get_room_mut(rid) {
-                    if let Some(game) = &mut room.game {
-                        match game.pass_alibi_cards() {
-                            Ok(()) => {
-                                let phase_msg = ServerMessage::AccusationPhase {
-                                    current_turn: game.current_turn,
-                                    is_discoverer: true,
-                                };
-                                if let Ok(json) = serde_json::to_string(&phase_msg) {
-                                    room.broadcast(&json);
+                    // borrowチェッカー対策: gameからデータを収集してからroom操作
+                    let result = if let Some(game) = &mut room.game {
+                        match game.confirm_alibi(player_id) {
+                            Ok(all_confirmed) => {
+                                if all_confirmed {
+                                    let phase_msg = ServerMessage::AccusationPhase {
+                                        current_turn: game.current_turn,
+                                        is_discoverer: true,
+                                    };
+                                    Ok(serde_json::to_string(&phase_msg).ok())
+                                } else {
+                                    Ok(None) // まだ全員確認していない
                                 }
                             }
-                            Err(e) => { send_error(tx, e); }
+                            Err(e) => Err(e),
                         }
+                    } else {
+                        Err("ゲームが開始されていません".to_string())
+                    };
+
+                    match result {
+                        Ok(Some(json)) => { room.broadcast(&json); }
+                        Ok(None) => {} // 待機中、何もしない
+                        Err(e) => { send_error(tx, e); }
                     }
                 }
             }
@@ -405,19 +424,45 @@ async fn handle_message(
             let mut state = state.write().await;
             if let Some(rid) = room_id {
                 if let Some(room) = state.get_room_mut(rid) {
-                    if let Some(game) = &mut room.game {
+                    // gameから必要なデータを先に収集
+                    let result = if let Some(game) = &mut room.game {
                         match game.view_suspects(player_id, indices) {
                             Ok(cards) => {
-                                let response = ServerMessage::SuspectsViewed {
+                                let viewed_json = serde_json::to_string(&ServerMessage::SuspectsViewed {
                                     cards: [cards[0].into(), cards[1].into()],
                                     indices,
+                                }).ok();
+
+                                // すり替え無効時、発見者なら自動スキップ用データ
+                                let player_idx = game.players.iter().position(|p| p.id == player_id);
+                                let auto_skip = !game.tamper_enabled && player_idx == Some(game.discoverer_index);
+                                let waiting_json = if auto_skip {
+                                    serde_json::to_string(&ServerMessage::WaitingForAction {
+                                        action: "accuse".to_string(),
+                                        current_player: game.players[game.current_turn].name.clone(),
+                                    }).ok()
+                                } else {
+                                    None
                                 };
-                                if let Ok(json) = serde_json::to_string(&response) {
-                                    room.send_to(player_id, &json);
-                                }
+
+                                Ok((viewed_json, waiting_json))
                             }
-                            Err(e) => { send_error(tx, e); }
+                            Err(e) => Err(e),
                         }
+                    } else {
+                        Err("ゲームが開始されていません".to_string())
+                    };
+
+                    match result {
+                        Ok((viewed_json, waiting_json)) => {
+                            if let Some(json) = viewed_json {
+                                room.send_to(player_id, &json);
+                            }
+                            if let Some(json) = waiting_json {
+                                room.broadcast(&json);
+                            }
+                        }
+                        Err(e) => { send_error(tx, e); }
                     }
                 }
             }

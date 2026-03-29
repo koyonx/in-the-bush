@@ -33,6 +33,7 @@ export interface GameData {
     playersScore: PlayerScoreInfo[];
   } | null;
   waitingAction: { action: string; playerName: string } | null;
+  tamperEnabled: boolean;
 }
 
 function App() {
@@ -85,6 +86,7 @@ function App() {
             accusationStacks: [[], [], []],
             roundResult: null,
             waitingAction: null,
+            tamperEnabled: msg.tamper_enabled,
           });
           setScreen("game");
           break;
@@ -119,10 +121,12 @@ function App() {
         case "suspects_viewed":
           setGameData((prev) => {
             if (!prev) return prev;
+            // すり替え無効 or 発見者でない場合、tamperフェーズをスキップ
+            const nextPhase = (prev.isDiscoverer && prev.tamperEnabled) ? "tamper" : "accuse";
             return {
               ...prev,
               viewedSuspects: { cards: msg.cards, indices: msg.indices },
-              phase: prev.isDiscoverer ? "tamper" : "accuse",
+              phase: nextPhase,
             };
           });
           break;
@@ -212,12 +216,12 @@ function App() {
   return (
     <div className="h-svh flex flex-col overflow-hidden">
       {!connected && (
-        <div className="bg-[var(--oink-dark)] text-white text-center py-2.5 text-sm font-bold tracking-wide animate-slide-down">
-          接続中...
+        <div className="text-center py-2.5 text-sm font-bold tracking-widest animate-slide-down" style={{ background: "var(--sumi-light)", color: "var(--kin)" }}>
+          接続中…
         </div>
       )}
       {error && (
-        <div className="bg-[var(--oink-red)] text-white text-center py-2.5 text-sm font-bold animate-slide-down">
+        <div className="text-center py-2.5 text-sm font-bold tracking-wider animate-slide-down" style={{ background: "var(--shu)", color: "var(--washi)" }}>
           {error}
         </div>
       )}
@@ -228,7 +232,7 @@ function App() {
           roomId={roomId}
           players={players}
           isHost={isHost}
-          onStart={() => sendMessage({ type: "start_game" })}
+          onStart={(tamperEnabled) => sendMessage({ type: "start_game", tamper_enabled: tamperEnabled })}
         />
       )}
       {screen === "game" && gameData && (

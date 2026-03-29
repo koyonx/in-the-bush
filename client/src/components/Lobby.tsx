@@ -21,17 +21,25 @@ export function Lobby({ onSend }: Props) {
   };
 
   return (
-    <div className="flex-1 flex items-center justify-center p-6">
+    <div className="flex-1 flex items-center justify-center p-6" style={{
+      background: "radial-gradient(ellipse at center, #2a2420 0%, #1a1a1a 70%)",
+    }}>
       <div className="w-full max-w-sm animate-fade-in-up">
-        {/* Logo */}
-        <div className="text-center mb-10">
-          <div className="inline-block bg-[var(--oink-dark)] rounded-3xl px-8 py-4 mb-4 animate-scale-in">
-            <h1 className="text-4xl font-black text-[var(--oink-cream)] tracking-widest">
-              藪の中
-            </h1>
-          </div>
-          <p className="text-[var(--oink-gray)] text-sm font-medium tracking-wider">
-            YABU NO NAKA
+        {/* タイトル */}
+        <div className="text-center mb-12">
+          <h1
+            className="text-6xl font-black tracking-[0.3em] mb-3 animate-brush-in"
+            style={{
+              fontFamily: "'Zen Antique', 'Noto Serif JP', serif",
+              color: "var(--washi)",
+              textShadow: "0 0 40px rgba(201,169,110,0.3)",
+            }}
+          >
+            藪の中
+          </h1>
+          <div className="gold-line w-32 mx-auto mb-3" />
+          <p className="text-[var(--hai)] text-xs tracking-[0.5em] font-medium">
+            芥川龍之介
           </p>
         </div>
 
@@ -39,44 +47,47 @@ export function Lobby({ onSend }: Props) {
           <div className="space-y-4 animate-fade-in">
             <input
               type="text"
-              placeholder="あなたの名前"
+              placeholder="名を名乗れ"
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={12}
-              className="w-full px-5 py-4 bg-white border-2 border-[var(--oink-light-gray)] rounded-2xl text-[var(--oink-dark)] placeholder-[var(--oink-gray)] focus:outline-none focus:border-[var(--oink-orange)] text-center text-lg font-medium transition-colors"
+              className="w-full px-5 py-4 bg-transparent border border-[var(--hai)] rounded-none text-[var(--washi)] placeholder-[var(--hai)] focus:outline-none focus:border-[var(--kin)] text-center text-lg tracking-widest transition-colors"
+              style={{ fontFamily: "'Noto Serif JP', serif" }}
             />
             <button
               onClick={() => name.trim() && setMode("create")}
               disabled={!name.trim()}
-              className="w-full py-4 bg-[var(--oink-orange)] hover:bg-[var(--oink-orange-light)] disabled:bg-[var(--oink-light-gray)] disabled:text-[var(--oink-gray)] text-white rounded-2xl font-bold text-lg transition-all active:scale-[0.98] shadow-lg shadow-[var(--oink-orange)]/20"
+              className="btn-shu w-full py-4 rounded-sm text-lg tracking-widest"
             >
-              ルームを作成
+              部屋を立てる
             </button>
             <button
               onClick={() => name.trim() && setMode("join")}
               disabled={!name.trim()}
-              className="w-full py-4 bg-white hover:bg-[var(--oink-light-gray)] disabled:opacity-40 text-[var(--oink-dark)] rounded-2xl font-bold text-lg transition-all active:scale-[0.98] border-2 border-[var(--oink-light-gray)]"
+              className="btn-ghost w-full py-4 rounded-sm text-lg tracking-widest"
             >
-              ルームに参加
+              部屋に入る
             </button>
           </div>
         )}
 
         {mode === "create" && (
           <div className="space-y-4 animate-fade-in">
-            <div className="bg-white rounded-2xl p-5 text-center border-2 border-[var(--oink-light-gray)]">
-              <p className="text-[var(--oink-gray)] text-sm mb-1">プレイヤー名</p>
-              <p className="text-[var(--oink-dark)] text-xl font-bold">{name}</p>
+            <div className="border border-[var(--kin)]/30 p-5 text-center">
+              <p className="text-[var(--hai)] text-xs tracking-widest mb-2">名前</p>
+              <p className="text-[var(--washi)] text-xl tracking-widest" style={{ fontFamily: "'Zen Antique', serif" }}>
+                {name}
+              </p>
             </div>
             <button
               onClick={handleCreate}
-              className="w-full py-4 bg-[var(--oink-orange)] hover:bg-[var(--oink-orange-light)] text-white rounded-2xl font-bold text-lg transition-all active:scale-[0.98] shadow-lg shadow-[var(--oink-orange)]/20"
+              className="btn-shu w-full py-4 rounded-sm text-lg tracking-widest"
             >
-              作成する
+              開始
             </button>
             <button
               onClick={() => setMode("select")}
-              className="w-full py-3 text-[var(--oink-gray)] hover:text-[var(--oink-dark)] transition-colors text-sm font-medium"
+              className="w-full py-3 text-[var(--hai)] hover:text-[var(--washi)] transition-colors text-sm tracking-widest"
             >
               戻る
             </button>
@@ -85,9 +96,11 @@ export function Lobby({ onSend }: Props) {
 
         {mode === "join" && (
           <div className="space-y-4 animate-fade-in">
-            <div className="bg-white rounded-2xl p-5 text-center border-2 border-[var(--oink-light-gray)]">
-              <p className="text-[var(--oink-gray)] text-sm mb-1">プレイヤー名</p>
-              <p className="text-[var(--oink-dark)] text-xl font-bold">{name}</p>
+            <div className="border border-[var(--kin)]/30 p-5 text-center">
+              <p className="text-[var(--hai)] text-xs tracking-widest mb-2">名前</p>
+              <p className="text-[var(--washi)] text-xl tracking-widest" style={{ fontFamily: "'Zen Antique', serif" }}>
+                {name}
+              </p>
             </div>
             <input
               type="text"
@@ -95,18 +108,18 @@ export function Lobby({ onSend }: Props) {
               value={roomId}
               onChange={(e) => setRoomId(e.target.value.replace(/\D/g, "").slice(0, 4))}
               maxLength={4}
-              className="w-full px-5 py-5 bg-white border-2 border-[var(--oink-light-gray)] rounded-2xl text-[var(--oink-dark)] placeholder-[var(--oink-light-gray)] focus:outline-none focus:border-[var(--oink-teal)] text-center text-3xl tracking-[0.8em] font-black font-mono transition-colors"
+              className="w-full px-5 py-5 bg-transparent border border-[var(--hai)] rounded-none text-[var(--washi)] placeholder-[var(--hai)]/30 focus:outline-none focus:border-[var(--kin)] text-center text-4xl tracking-[1em] font-black font-mono transition-colors"
             />
             <button
               onClick={handleJoin}
               disabled={roomId.length !== 4}
-              className="w-full py-4 bg-[var(--oink-teal)] hover:bg-[var(--oink-teal-light)] disabled:bg-[var(--oink-light-gray)] disabled:text-[var(--oink-gray)] text-white rounded-2xl font-bold text-lg transition-all active:scale-[0.98] shadow-lg shadow-[var(--oink-teal)]/20"
+              className="btn-matcha w-full py-4 rounded-sm text-lg tracking-widest"
             >
-              参加する
+              入室
             </button>
             <button
               onClick={() => setMode("select")}
-              className="w-full py-3 text-[var(--oink-gray)] hover:text-[var(--oink-dark)] transition-colors text-sm font-medium"
+              className="w-full py-3 text-[var(--hai)] hover:text-[var(--washi)] transition-colors text-sm tracking-widest"
             >
               戻る
             </button>
