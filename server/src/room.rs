@@ -19,6 +19,7 @@ pub struct Room {
     pub players: Vec<Player>,
     pub game: Option<GameState>,
     pub host_id: String,
+    pub tamper_enabled: bool,
 }
 
 impl Room {
@@ -29,6 +30,7 @@ impl Room {
             players: vec![host],
             game: None,
             host_id,
+            tamper_enabled: true,
         }
     }
 
@@ -71,7 +73,7 @@ impl Room {
             .iter()
             .map(|p| (p.id.clone(), p.name.clone()))
             .collect();
-        self.game = Some(GameState::new(player_ids));
+        self.game = Some(GameState::new(player_ids, self.tamper_enabled));
         Ok(())
     }
 }

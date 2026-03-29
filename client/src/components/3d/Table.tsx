@@ -1,22 +1,51 @@
 export function Table() {
   return (
     <group>
-      {/* Table surface - deep red felt */}
+      {/* テーブル天板 */}
       <mesh position={[0, -0.05, 0]} receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[5, 5, 0.1, 64]} />
-        <meshStandardMaterial color="#8B1A2B" roughness={0.85} metalness={0.05} />
+        <cylinderGeometry args={[3, 3, 0.1, 64]} />
+        <meshStandardMaterial
+          color="#5C2E20"
+          emissive="#2A1510"
+          emissiveIntensity={0.5}
+          roughness={0.3}
+          metalness={0.2}
+        />
       </mesh>
 
-      {/* Table edge / rim */}
-      <mesh position={[0, 0, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <torusGeometry args={[5, 0.15, 16, 64]} />
-        <meshStandardMaterial color="#5C3D2E" roughness={0.4} metalness={0.2} />
+      {/* テーブル縁 */}
+      <mesh position={[0, 0.005, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[3, 0.04, 8, 64]} />
+        <meshStandardMaterial
+          color="#C9A96E"
+          emissive="#8B7040"
+          emissiveIntensity={0.5}
+          roughness={0.2}
+          metalness={0.6}
+        />
       </mesh>
 
-      {/* Subtle inner circle */}
-      <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[2.2, 2.3, 64]} />
-        <meshStandardMaterial color="#7A1525" roughness={0.9} transparent opacity={0.5} />
+      {/* 内側の装飾円 */}
+      <mesh position={[0, 0.003, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[1.4, 1.44, 64]} />
+        <meshStandardMaterial
+          color="#C9A96E"
+          emissive="#6B5030"
+          emissiveIntensity={0.3}
+          transparent
+          opacity={0.4}
+        />
+      </mesh>
+
+      {/* 床面 */}
+      <mesh position={[0, -0.12, 0]} receiveShadow rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[30, 30]} />
+        <meshStandardMaterial
+          color="#201a14"
+          emissive="#100c08"
+          emissiveIntensity={0.3}
+          roughness={0.95}
+        />
       </mesh>
     </group>
   );

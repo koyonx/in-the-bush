@@ -4,7 +4,6 @@ import { Table } from "./Table";
 import { SuspectCard } from "./SuspectCard";
 import { VictimCard } from "./VictimCard";
 import { PlayerChips } from "./PlayerChips";
-import { AlibiCard } from "./AlibiCard";
 import type { GameData } from "../../App";
 import type { CardInfo } from "../../types";
 import * as THREE from "three";
@@ -12,50 +11,41 @@ import * as THREE from "three";
 interface Props {
   gameData: GameData;
   playerId: string;
-  spectatorMode?: boolean;
 }
 
-function CameraController({ spectatorMode }: { spectatorMode: boolean }) {
+function CameraController() {
   const { camera } = useThree();
   const initialized = useRef(false);
 
   useEffect(() => {
     if (!initialized.current) {
-      if (spectatorMode) {
-        camera.position.set(0, 8, 6);
-        camera.lookAt(new THREE.Vector3(0, 0, 0));
-      } else {
-        // Low angle, looking at the cards from across the table
-        // Y=3 (not too high), Z=7 (far back to see the full table)
-        camera.position.set(0, 3, 7);
-        camera.lookAt(new THREE.Vector3(0, 0.8, 0));
-      }
+      // 斜め上から全体を見下ろす自然な角度
+      camera.position.set(0, 5, 5.5);
+      camera.lookAt(new THREE.Vector3(0, 0, 0));
       camera.updateProjectionMatrix();
       initialized.current = true;
     }
-  }, [camera, spectatorMode]);
+  }, [camera]);
 
   return null;
 }
 
-export function TableScene({ gameData, playerId, spectatorMode = false }: Props) {
-  const { players, discovererIndex, viewedSuspects, accusationStacks, alibiCards, roundResult, phase } = gameData;
+export function TableScene({ gameData, playerId }: Props) {
+  const { players, discovererIndex, viewedSuspects, accusationStacks, roundResult } = gameData;
   const myIndex = players.findIndex((p) => p.id === playerId);
 
-  // Suspect card positions - center of table, spread horizontally
   const suspectPositions: [number, number, number][] = [
-    [-1.8, 0, 0],
-    [0, 0, 0],
-    [1.8, 0, 0],
+    [-1.2, 0, -0.3],
+    [0, 0, -0.3],
+    [1.2, 0, -0.3],
   ];
 
-  // Player positions around the table
   const getPlayerPositions = (count: number): [number, number, number][] => {
     const positions: [number, number, number][] = [];
     for (let i = 0; i < count; i++) {
-      const offset = spectatorMode ? 0 : -myIndex;
+      const offset = -myIndex;
       const angle = ((i + offset) / count) * Math.PI * 2 + Math.PI / 2;
-      const radius = 3.5;
+      const radius = 2.5;
       positions.push([Math.cos(angle) * radius, 0, Math.sin(angle) * radius]);
     }
     return positions;
@@ -76,22 +66,20 @@ export function TableScene({ gameData, playerId, spectatorMode = false }: Props)
 
   return (
     <Canvas
-      camera={{ fov: 50 }}
+      camera={{ fov: 55 }}
       shadows
-      style={{ background: "#1a0a0a", width: "100%", height: "100%" }}
+      style={{ background: "#15100c", width: "100%", height: "100%" }}
     >
-      <CameraController spectatorMode={spectatorMode} />
+      <CameraController />
 
-      {/* Lighting - bright enough to see everything */}
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[5, 8, 8]} intensity={0.8} castShadow />
-      {/* Key light from player's side to illuminate card faces */}
-      <pointLight position={[0, 3, 8]} intensity={1.0} color="#ffffff" />
-      <pointLight position={[0, 5, 0]} intensity={0.4} color="#fff5e0" />
+      <ambientLight intensity={2.0} color="#fff5e8" />
+      <hemisphereLight args={["#fff0d0", "#3a2a18", 1.2]} />
+      <directionalLight position={[0, 8, 4]} intensity={1.5} color="#ffffff" castShadow />
+      <directionalLight position={[0, 6, -5]} intensity={0.8} color="#ffe8c8" />
+      <pointLight position={[0, 4, 0]} intensity={1.5} color="#fff0d0" distance={15} />
 
       <Table />
 
-      {/* Suspect Cards - standing in center, facing the player */}
       {suspectPositions.map((pos, i) => {
         const { faceUp, card } = getSuspectDisplay(i);
         return (
@@ -106,14 +94,12 @@ export function TableScene({ gameData, playerId, spectatorMode = false }: Props)
         );
       })}
 
-      {/* Victim Card - laying flat in front of suspects */}
       <VictimCard
-        position={[0, 0.02, 1.8]}
+        position={[0, 0.02, 1.0]}
         card={roundResult?.victim ?? null}
         faceUp={!!roundResult}
       />
 
-      {/* Player Areas */}
       {players.map((player, i) => (
         <PlayerChips
           key={player.id}
@@ -126,25 +112,15 @@ export function TableScene({ gameData, playerId, spectatorMode = false }: Props)
           chipColor={getPlayerColor(i)}
         />
       ))}
-
-      {/* Alibi Cards - in player's hand area */}
-      {alibiCards && phase !== "round_end" && phase !== "game_over" && (
-        <AlibiCard
-          position={[0, 0.3, 5]}
-          ownCard={alibiCards.own}
-          receivedCard={alibiCards.received}
-          phase={phase}
-        />
-      )}
     </Canvas>
   );
 }
 
 function getPlayerColor(index: number): string {
   const colors = [
-    "#FF6B35", "#00B4A6", "#457B9D", "#E63946",
-    "#FFB800", "#9B59B6", "#2ECC71", "#E67E22",
-    "#1ABC9C", "#E74C3C",
+    "#C41E3A", "#C9A96E", "#4A7A9B", "#5B7553",
+    "#8B4513", "#7B5EA7", "#B87333", "#2E4F6E",
+    "#D94F5C", "#DFC48B",
   ];
   return colors[index % colors.length];
 }

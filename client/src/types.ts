@@ -26,7 +26,7 @@ export type ServerMessage =
   | { type: "room_joined"; room_id: string; player_id: string; players: PlayerInfo[] }
   | { type: "player_joined"; players: PlayerInfo[] }
   | { type: "player_left"; players: PlayerInfo[]; player_name: string }
-  | { type: "game_started"; discoverer_index: number; players: PlayerInfo[] }
+  | { type: "game_started"; discoverer_index: number; players: PlayerInfo[]; tamper_enabled: boolean }
   | { type: "alibi_cards"; own_card: CardInfo; received_card: CardInfo | null }
   | { type: "accusation_phase"; current_turn: number; is_discoverer: boolean }
   | { type: "suspects_viewed"; cards: [CardInfo, CardInfo]; indices: [number, number] }
@@ -53,7 +53,7 @@ export type ServerMessage =
 export type ClientMessage =
   | { type: "create_room"; name: string }
   | { type: "join_room"; room_id: string; name: string }
-  | { type: "start_game" }
+  | { type: "start_game"; tamper_enabled: boolean }
   | { type: "pass_alibi" }
   | { type: "view_suspects"; indices: [number, number] }
   | { type: "tamper"; suspect_idx: number }
